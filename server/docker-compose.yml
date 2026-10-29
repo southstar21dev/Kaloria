@@ -1,0 +1,13 @@
+# Local development server. The app's debug build talks to http://10.0.2.2:8090 (the emulator's
+# view of this machine). Admin UI: http://localhost:8090/_/
+services:
+  pocketbase:
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-admin@kaloria.local}
+      PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-change-me-locally}
+    volumes:
+      - ./pb_data:/pb_data
+    restart: unless-stopped

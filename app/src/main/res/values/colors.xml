@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand colours for the launch screen; the app itself takes them from KaloriaTheme. -->
+    <color name="brand_mark">#FF1F4E79</color>
+    <color name="brand_splash_background">#FFF8F5EE</color>
+</resources>

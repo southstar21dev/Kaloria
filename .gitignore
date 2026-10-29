@@ -1,0 +1,38 @@
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+local.properties
+
+# Android
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.hprof
+output-metadata.json
+
+# Signing / secrets
+keystore.properties
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Server
+server/pb_data/
+
+# Tooling
+.codegraph/
+.tachyons/
+dist/

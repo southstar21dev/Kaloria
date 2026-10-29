@@ -1,0 +1,12 @@
+<resources>
+    <style name="Theme.Kaloria" parent="Theme.SplashScreen">
+        <item name="postSplashScreenTheme">@style/Theme.Kaloria.Main</item>
+        <item name="windowSplashScreenBackground">@color/brand_splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_animated</item>
+        <item name="windowSplashScreenAnimationDuration">1000</item>
+    </style>
+
+    <style name="Theme.Kaloria.Main" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
+</resources>

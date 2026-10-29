@@ -1,0 +1,4 @@
+<resources>
+    <string name="widget_name">Kaloria today</string>
+    <string name="widget_description">Calories left, macros and water, with barcode scan and quick water.</string>
+</resources>
