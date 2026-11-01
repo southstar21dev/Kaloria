@@ -8,4 +8,4 @@ onRecordUpdateRequest((e) => {
     throw new ApiError(409, "A newer version of this record exists.", {});
   }
   e.next();
-}, "foods", "log_entries", "water_entries", "weight_entries", "goals");
+}, "foods", "log_entries", "weight_entries", "goals");
