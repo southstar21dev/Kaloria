@@ -1,0 +1,15 @@
+{
+  "branches": ["master", { "name": "staging", "prerelease": "rc" }],
+  "tagFormat": "v${version}",
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    ["@semantic-release/exec", { "prepareCmd": "scripts/build-release.sh ${nextRelease.version}" }],
+    ["@semantic-release/github", {
+      "assets": [{ "path": "dist/*.apk" }, { "path": "dist/*.aab" }],
+      "successComment": false,
+      "failComment": false,
+      "releasedLabels": false
+    }]
+  ]
+}

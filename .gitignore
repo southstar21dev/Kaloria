@@ -36,3 +36,5 @@ server/pb_data/
 .codegraph/
 .tachyons/
 dist/
+.playwright-mcp/
+node_modules/
