@@ -1,4 +1,4 @@
-FROM ghcr.io/muchobien/pocketbase:0.40.4
+FROM ghcr.io/muchobien/pocketbase:0.40.6
 
 COPY pb_migrations /pb_migrations
 COPY pb_hooks /pb_hooks
