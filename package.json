@@ -14,9 +14,10 @@
   "private": true,
   "devDependencies": {
     "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/npm": "file:tools/semantic-release-npm-stub",
     "semantic-release": "^25.0.9"
   },
   "overrides": {
-    "@semantic-release/npm": "file:tools/semantic-release-npm-stub"
+    "@semantic-release/npm": "$@semantic-release/npm"
   }
 }
