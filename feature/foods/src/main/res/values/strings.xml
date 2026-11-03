@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Foods list -->
+    <string name="foods_title">Foods</string>
+    <string name="foods_search_placeholder">Search name, brand or barcode</string>
+    <string name="foods_empty_title">No foods yet</string>
+    <string name="foods_empty_text">Foods you create, scan or log from search appear here. Tap + below to add one.</string>
+    <string name="foods_no_matches_title">No matches</string>
+    <string name="foods_no_matches_text">Nothing in your foods matches “%1$s”.</string>
+    <string name="foods_per_100">100 %1$s</string>
+    <string name="foods_macro_line">P %1$s · C %2$s · F %3$s</string>
+
+    <!-- Food editor -->
+    <string name="food_editor_new_title">New food</string>
+    <string name="food_editor_edit_title">Edit food</string>
+    <string name="food_editor_back">Back</string>
+    <string name="food_editor_add_favorite">Add to favorites</string>
+    <string name="food_editor_remove_favorite">Remove from favorites</string>
+    <string name="food_editor_save">Save food</string>
+    <string name="food_editor_cant_save">Can\'t save yet</string>
+    <string name="food_editor_name">Name</string>
+    <string name="food_editor_required">Required</string>
+    <string name="food_editor_brand_optional">Brand (optional)</string>
+    <string name="food_editor_barcode_optional">Barcode (optional)</string>
+    <string name="food_editor_values_per">Values are per</string>
+    <string name="food_editor_per_100">100 %1$s</string>
+    <string name="food_editor_nutrition_per_100">Nutrition per 100 %1$s</string>
+    <string name="food_editor_energy">Energy</string>
+    <string name="food_editor_kcal">kcal</string>
+    <string name="food_editor_kj">kJ</string>
+    <string name="food_editor_energy_as_kcal">= %1$s kcal</string>
+    <string name="food_editor_protein">Protein</string>
+    <string name="food_editor_fiber">Fiber</string>
+    <string name="food_editor_carbs">Carbs</string>
+    <string name="food_editor_sugars">Sugars</string>
+    <string name="food_editor_fat">Fat</string>
+    <string name="food_editor_saturated">Saturated</string>
+    <string name="food_editor_saturated_fat">Saturated fat</string>
+    <string name="food_editor_salt">Salt</string>
+    <string name="food_editor_field_note">%1$s: %2$s</string>
+    <string name="food_editor_delete_food">Delete food</string>
+    <string name="food_editor_discard_title">Discard changes?</string>
+    <string name="food_editor_discard_scan">The values read from the label will be lost.</string>
+    <string name="food_editor_discard_edits">Your edits to this food won\'t be saved.</string>
+    <string name="food_editor_discard">Discard</string>
+    <string name="food_editor_keep_editing">Keep editing</string>
+    <string name="food_editor_delete_title">Delete %1$s?</string>
+    <string name="food_editor_delete_text">Logged entries keep their values; the food disappears from search.</string>
+    <string name="food_editor_delete">Delete</string>
+    <string name="food_editor_cancel">Cancel</string>
+
+    <!-- Food editor: checks -->
+    <string name="food_editor_check_name">A name is required.</string>
+    <string name="food_editor_check_energy">Energy is required.</string>
+    <string name="food_editor_check_sugars">Sugars can\'t be more than carbs.</string>
+    <string name="food_editor_check_saturated">Saturated fat can\'t be more than fat.</string>
+    <string name="food_editor_check_macros_over">Macros add up to more than 100 g per 100 g.</string>
+    <string name="food_editor_check_implausible">A value is impossible per 100 %1$s (energy over %2$d kcal or a nutrient over 100 g).</string>
+    <string name="food_editor_check_unparseable">Some values aren\'t numbers.</string>
+    <string name="food_editor_check_mismatch_more">The macros imply %1$s kcal, %2$d kcal more than stated. Double-check against the label.</string>
+    <string name="food_editor_check_mismatch_less">The macros imply %1$s kcal, %2$d kcal less than stated. Double-check against the label.</string>
+
+    <!-- Food editor: micronutrients and servings -->
+    <string name="food_editor_micronutrients">Micronutrients</string>
+    <string name="food_editor_remove_micro">Remove %1$s</string>
+    <string name="food_editor_add_micro">Add micronutrient</string>
+    <string name="food_editor_micro_option">%1$s (%2$s)</string>
+    <string name="food_editor_servings">Servings</string>
+    <string name="food_editor_servings_hint">Named portions for quick logging, e.g. “1 slice” = 28 %1$s.</string>
+    <string name="food_editor_amount">Amount</string>
+    <string name="food_editor_remove_serving">Remove serving</string>
+    <string name="food_editor_add_serving">Add serving</string>
+
+    <!-- Food editor: scanned label -->
+    <string name="food_editor_scan_read_by_nano">Read by Gemini Nano</string>
+    <string name="food_editor_scan_read_by_rules">Read by text rules</string>
+    <string name="food_editor_scan_smaller">Smaller</string>
+    <string name="food_editor_scan_enlarge">Enlarge</string>
+    <string name="food_editor_scan_check">Check every value against the photo before saving.</string>
+    <string name="food_editor_scan_check_highlighted">Check every value against the photo. Highlighted fields need a closer look.</string>
+    <string name="food_editor_scan_photo">Photo of the nutrition label</string>
+</resources>

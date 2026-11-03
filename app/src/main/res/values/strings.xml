@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Kaloria</string>
+    <string name="dock_today">Today</string>
+    <string name="dock_progress">Progress</string>
+    <string name="dock_foods">Foods</string>
+    <string name="dock_add_scan_label">Scan nutrition label</string>
+    <string name="dock_add_scan_barcode">Scan barcode</string>
+    <string name="dock_add_new_food">New food</string>
+    <string name="dock_add_search">Search foods</string>
+    <string name="dock_close_add_menu">Close add menu</string>
+    <string name="dock_add_food">Add food</string>
+</resources>

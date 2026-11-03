@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings screen -->
+    <string name="settings_back">Back</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">Goals, sync, appearance</string>
+    <string name="settings_goals_header">Daily goals</string>
+    <string name="settings_goal_energy">Energy</string>
+    <string name="settings_goal_protein">Protein</string>
+    <string name="settings_goal_carbs">Carbs</string>
+    <string name="settings_goal_fat">Fat</string>
+    <string name="settings_goal_fiber">Fiber</string>
+    <string name="settings_goal_steps">Steps</string>
+    <string name="settings_goal_steps_unit">steps</string>
+    <string name="settings_goals_note">Your own numbers; Kaloria doesn\'t estimate them.</string>
+    <string name="settings_goals_macro_kcal">" Macros add up to %1$s kcal."</string>
+    <string name="settings_goals_save">Save goals</string>
+    <string name="settings_goal_not_set">Not set</string>
+    <string name="settings_appearance_header">Appearance</string>
+    <string name="settings_reduce_transparency">Reduce transparency</string>
+    <string name="settings_reduce_transparency_body">Frosted glass instead of clear, refracting glass. Easier to read, lighter on the battery.</string>
+
+    <!-- Account card -->
+    <string name="settings_account_local_network_denied">Allow local network access to reach a server on your network.</string>
+    <string name="settings_account_sync_title">Sync</string>
+    <string name="settings_account_intro">Sign in to your PocketBase server to back up and sync across devices. Everything works offline either way.</string>
+    <string name="settings_account_server">Server</string>
+    <string name="settings_account_email">Email</string>
+    <string name="settings_account_password">Password</string>
+    <string name="settings_account_hide_password">Hide password</string>
+    <string name="settings_account_show_password">Show password</string>
+    <string name="settings_account_sign_in">Sign in</string>
+    <string name="settings_account_no_sign_up">Accounts are created in the PocketBase admin dashboard; this app can\'t sign up.</string>
+    <string name="settings_account_syncing">Syncing…</string>
+    <string name="settings_account_sync_failed">Last sync failed: %1$s</string>
+    <string name="settings_account_synced">Synced %1$s</string>
+    <string name="settings_account_not_synced">Not synced yet</string>
+    <string name="settings_account_sync_now">Sync</string>
+    <string name="settings_account_sign_out">Sign out</string>
+    <string name="settings_account_just_now">just now</string>
+    <string name="settings_account_minutes_ago">%1$d min ago</string>
+    <string name="settings_account_hours_ago">%1$d h ago</string>
+    <plurals name="settings_account_days_ago">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+</resources>

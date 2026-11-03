@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72" width="256" height="256" role="img" aria-label="Kaloria">
+  <defs><linearGradient id="silver" x1="0" y1="0" x2="60" y2="108" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#DCE2EE"/><stop offset="0.55" stop-color="#B9C6DD"/><stop offset="1" stop-color="#9FB0D0"/>
+  </linearGradient></defs>
+  <rect x="18" y="18" width="72" height="72" rx="17" fill="url(#silver)"/>
+  <path d="M32.16,45.12 L32.16,32.16 L45.12,32.16 M62.88,32.16 L75.84,32.16 L75.84,45.12 M32.16,62.88 L32.16,75.84 L45.12,75.84 M62.88,75.84 L75.84,75.84 L75.84,62.88" fill="none" stroke="#1F4E79" stroke-width="4.32" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M43.44,52.25 L64.56,52.25" fill="none" stroke="#1F4E79" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M43.34,55.73 L64.66,55.73 A10.66,10.66 0 0,1 43.34,55.73 Z" fill="#1F4E79"/>
+</svg>

@@ -1,0 +1,15 @@
+# Local development server. The app's debug build talks to http://10.0.2.2:8090 (the emulator's
+# view of this machine). Admin UI: http://localhost:8090/_/
+services:
+  pocketbase:
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      # No default password: set both (e.g. in a git-ignored server/.env) to create or reset the
+      # admin on start. Without them, open the admin UI once and create the admin there.
+      PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-}
+      PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
+    volumes:
+      - ./pb_data:/pb_data
+    restart: unless-stopped

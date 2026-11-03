@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Camera permission -->
+    <string name="camera_access_title">Camera access needed</string>
+    <string name="camera_access_body">Kaloria uses the camera only to read barcodes and nutrition labels. Images stay on your phone.</string>
+    <string name="camera_access_allow">Allow camera</string>
+
+    <!-- Label scan screen -->
+    <string name="label_scan_back">Back</string>
+    <string name="label_scan_reading_nano">Reading with Gemini Nano…</string>
+    <string name="label_scan_reading_text">Reading the text…</string>
+    <string name="label_scan_aim_hint">Fit the whole nutrition table in the frame, flat and in focus.</string>
+    <string name="label_scan_choose_photo">Choose a photo</string>
+    <string name="label_scan_failed_title">Couldn\'t read the label</string>
+    <string name="label_scan_try_again">Try again</string>
+    <string name="label_scan_no_table">No nutrition table found. Fill the frame with the table and try again.</string>
+    <string name="label_scan_failed_message">Couldn\'t read the label.</string>
+    <string name="label_scan_flattened_description">The nutrition table, flattened</string>
+    <string name="label_scan_table_found">Table found</string>
+    <string name="label_scan_table_found_body">Flattened as it will be read. Hold steady and take the photo.</string>
+    <string name="label_scan_take_photo">Take photo</string>
+    <string name="label_scan_ai_on">On-device AI on</string>
+    <string name="label_scan_ai_off">AI off · text rules</string>
+    <string name="label_scan_ai_download">Download on-device AI</string>
+    <string name="label_scan_ai_downloading">Downloading AI model…</string>
+    <string name="label_scan_ai_unavailable">Reading with text rules</string>
+    <string name="label_scan_ai_checking">Checking on-device AI…</string>
+</resources>

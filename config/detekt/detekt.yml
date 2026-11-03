@@ -1,0 +1,15 @@
+# Only what differs from detekt's defaults (buildUponDefaultConfig).
+naming:
+  FunctionNaming:
+    # Composables are PascalCase.
+    ignoreAnnotated: ['Composable']
+style:
+  MagicNumber:
+    active: false # layout and colour constants read better inline
+  MaxLineLength:
+    active: false # see .editorconfig
+complexity:
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+  LongMethod:
+    ignoreAnnotated: ['Composable']

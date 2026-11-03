@@ -1,0 +1,10 @@
+<resources>
+    <string name="widget_name">Kaloria today</string>
+    <string name="widget_description">Calories left and macros, with barcode scan and food search.</string>
+    <string name="widget_kcal_eaten">kcal eaten</string>
+    <string name="widget_kcal_left">kcal left</string>
+    <string name="widget_kcal_over">kcal over</string>
+    <string name="widget_macros">P %1$dg · C %2$dg · F %3$dg</string>
+    <string name="widget_scan">Scan</string>
+    <string name="widget_search">Search</string>
+</resources>

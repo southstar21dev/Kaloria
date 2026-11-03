@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="food_search_back">Back</string>
+    <string name="food_search_placeholder">Search foods</string>
+    <string name="food_search_clear">Clear</string>
+    <string name="food_search_scan_barcode">Scan barcode</string>
+    <string name="food_search_your_foods">Your foods</string>
+    <string name="food_search_empty_title">Your food database is empty</string>
+    <string name="food_search_empty_text">Search above to find foods online, or create your own.</string>
+    <string name="food_search_per_100">100 %1$s</string>
+    <string name="food_search_macro_line">P %1$s · C %2$s · F %3$s</string>
+    <string name="food_search_create_new">Create a new food</string>
+    <string name="food_search_create_named">Create “%1$s”</string>
+    <string name="food_search_log">Log</string>
+    <string name="food_search_logged">Logged %1$s</string>
+    <string name="food_search_source_open_food_facts">Open Food Facts</string>
+    <string name="food_search_source_usda">USDA generic foods</string>
+    <string name="food_search_source_failed">Couldn\'t load results from %1$s. Check your connection or try again.</string>
+    <string name="food_search_show_fewer">Show fewer</string>
+    <string name="food_search_show_all">Show all %1$d from %2$s</string>
+</resources>

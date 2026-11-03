@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Progress screen -->
+    <string name="progress_title">Progress</string>
+    <string name="progress_streak_start">Log a meal to start a streak</string>
+    <string name="progress_streak_days">%1$d-day streak</string>
+    <string name="progress_streak_keep">%1$d-day streak, log today to keep it</string>
+    <string name="progress_calories_title">Calories</string>
+    <string name="progress_days_logged">%1$d of %2$d days logged</string>
+    <string name="progress_kcal_per_day">kcal a day</string>
+    <string name="progress_calories_chart_description">Calories per day, average %1$s kcal</string>
+    <string name="progress_steps_title">Steps</string>
+    <string name="progress_steps_per_day">%1$,d a day</string>
+    <string name="progress_steps_chart_description">Steps per day</string>
+    <string name="progress_averages_title">Average per logged day</string>
+    <string name="progress_protein">Protein</string>
+    <string name="progress_carbs">Carbs</string>
+    <string name="progress_fat">Fat</string>
+    <string name="progress_fiber">Fiber</string>
+    <string name="progress_sugars">Sugars</string>
+    <string name="progress_saturated_fat">Saturated fat</string>
+    <string name="progress_salt">Salt</string>
+    <string name="progress_delete_weight_title">Delete weigh-in?</string>
+    <string name="progress_delete_weight_from_health">%1$.1f kg on %2$s came from Samsung Health. It\'s hidden in Kaloria; delete it in Samsung Health to remove it everywhere.</string>
+    <string name="progress_delete_weight_local">%1$.1f kg on %2$s. It\'s also removed from Samsung Health.</string>
+    <string name="progress_delete">Delete</string>
+    <string name="progress_cancel">Cancel</string>
+    <string name="progress_save">Save</string>
+
+    <!-- Streak tile -->
+    <plurals name="progress_streak_unit">
+        <item quantity="one">" day"</item>
+        <item quantity="other">" days"</item>
+    </plurals>
+    <string name="progress_streak_current">current streak</string>
+    <string name="progress_streak_best">Best %1$d</string>
+    <plurals name="progress_streak_total">
+        <item quantity="one">%1$d day logged</item>
+        <item quantity="other">%1$d days logged</item>
+    </plurals>
+    <string name="progress_activity_description">%1$d of the last %2$d weeks\' days logged</string>
+
+    <!-- Weight tile -->
+    <string name="progress_weight_title">Weight</string>
+    <string name="progress_weight_change">%1$+.1f kg in %2$s</string>
+    <string name="progress_weight_none">No weigh-ins yet</string>
+    <string name="progress_weight_latest">Latest weigh-in</string>
+    <string name="progress_weight_log">Log</string>
+    <string name="progress_weight_chart_description">Weight from %1$.1f to %2$.1f kg</string>
+    <string name="progress_weight_from_health">" · from Samsung Health"</string>
+    <string name="progress_weight_from_kaloria">" · logged in Kaloria"</string>
+    <string name="progress_health_synced">Synced with Samsung Health</string>
+    <string name="progress_health_connect_prompt">Sync weight with Samsung Health</string>
+    <string name="progress_health_update">Update Health Connect to sync with Samsung Health</string>
+    <string name="progress_health_connect">Connect</string>
+    <string name="progress_weight_dialog_title">Log weight</string>
+    <string name="progress_weight_field">Weight</string>
+</resources>

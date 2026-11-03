@@ -1,0 +1,85 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:NetworkModule.kt:request.method == "GET" &amp;&amp; request.url.host in CACHEABLE_HOSTS &amp;&amp; response.isSuccessful &amp;&amp; response.header("Cache-Control") == null</ID>
+    <ID>CyclomaticComplexMethod:AccountCard.kt:@Composable internal fun AccountCard</ID>
+    <ID>CyclomaticComplexMethod:BarcodeScanScreen.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun BarcodeScanScreen</ID>
+    <ID>CyclomaticComplexMethod:FoodEditorScreen.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun FoodEditorScreen</ID>
+    <ID>CyclomaticComplexMethod:FoodSearchScreen.kt:@OptIn(ExperimentalMaterial3ExpressiveApi::class) @Composable internal fun FoodSearchScreen</ID>
+    <ID>CyclomaticComplexMethod:Glass.kt:@Composable fun Modifier.glass: Modifier</ID>
+    <ID>CyclomaticComplexMethod:LabelChecks.kt:LabelChecks$fun check: List&lt;FieldWarning&gt;</ID>
+    <ID>CyclomaticComplexMethod:LabelSurface.kt:LabelSurface.Companion$fun fit: LabelSurface?</ID>
+    <ID>CyclomaticComplexMethod:NanoResponseParser.kt:NanoResponseParser$fun parse: LabelExtraction?</ID>
+    <ID>CyclomaticComplexMethod:NutritionLabelParser.kt:NutritionLabelParser$fun parse: LabelExtraction</ID>
+    <ID>CyclomaticComplexMethod:PortionSheet.kt:@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class) @Composable fun PortionSheet</ID>
+    <ID>CyclomaticComplexMethod:ProgressScreen.kt:@Composable internal fun ProgressScreen</ID>
+    <ID>CyclomaticComplexMethod:ScanFrame.kt:@Composable internal fun ScanFrame</ID>
+    <ID>CyclomaticComplexMethod:TableOutline.kt:TableOutline$fun fit: Fit?</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:FoodSearchScreen.kt:val (name, brand, unit, per100, servings) = when (pick) { is Pickable.Own -&gt; with(pick.food) { SheetFood(name, brand, unit, nutrients, servings) } is Pickable.Online -&gt; with(pick.food) { SheetFood(name, listOfNotNull(brand, detail).joinToString(" · ").ifEmpty { null }, unit, nutrients, servings) } }</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:LabelSurface.kt:Homography$val (a, b, c, d, e) = m</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:SessionStore.kt:SessionStore$(server, user, email, token)</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:TableOutline.kt:TableOutline$val (t, b, l, r) = if (fits) listOf(top, bottom, left, right) else listOf(across, across, down, down)</ID>
+    <ID>ExplicitItLambdaMultipleParameters:FoodsScreen.kt:{ _, it -&gt; it.id }</ID>
+    <ID>LongMethod:LabelSurface.kt:LabelSurface.Companion$fun fit: LabelSurface?</ID>
+    <ID>MatchingDeclarationName:Color.kt:Brand</ID>
+    <ID>MatchingDeclarationName:FoodSearchNavigation.kt:FoodSearchKey : NavKey</ID>
+    <ID>MatchingDeclarationName:KaloriaNavDisplay.kt:Shortcut</ID>
+    <ID>MatchingDeclarationName:PortionMath.kt:PortionUnits</ID>
+    <ID>MatchingDeclarationName:ProgressNavigation.kt:ProgressKey : NavKey</ID>
+    <ID>MatchingDeclarationName:ServingDialog.kt:ServingEdit</ID>
+    <ID>MatchingDeclarationName:SettingsNavigation.kt:SettingsKey : NavKey</ID>
+    <ID>MatchingDeclarationName:SyncColumns.kt:SyncedEntity</ID>
+    <ID>MatchingDeclarationName:ThinkingOrb.kt:OrbState</ID>
+    <ID>MatchingDeclarationName:TodayNavigation.kt:TodayKey : NavKey</ID>
+    <ID>MatchingDeclarationName:Transitions.kt:NavMotion</ID>
+    <ID>ReturnCount:AccountCard.kt:internal fun isLocalAddress: Boolean</ID>
+    <ID>ReturnCount:CameraPreview.kt:private suspend fun enhancedBackCamera: CameraSelector</ID>
+    <ID>ReturnCount:DragGestureInspector.kt:private suspend inline fun AwaitPointerEventScope.awaitDragOrUp: PointerInputChange?</ID>
+    <ID>ReturnCount:DragGestureInspector.kt:private suspend inline fun AwaitPointerEventScope.drag: PointerInputChange?</ID>
+    <ID>ReturnCount:FoodCatalog.kt:FoodCatalog$private fun isOnline: Boolean</ID>
+    <ID>ReturnCount:FoodCatalog.kt:FoodCatalog$suspend fun lookupBarcode: BarcodeResult</ID>
+    <ID>ReturnCount:LabelAnalyzer.kt:LabelAnalyzer$override fun analyze</ID>
+    <ID>ReturnCount:NanoResponseParser.kt:NanoResponseParser$fun parse: LabelExtraction?</ID>
+    <ID>ReturnCount:NutritionLabelParser.kt:NutritionLabelParser$private fun fieldOf: Field?</ID>
+    <ID>ReturnCount:OpenFoodFactsDataSource.kt:OpenFoodFactsDataSource.Companion$internal fun parseProduct: RemoteFood?</ID>
+    <ID>ReturnCount:OpenFoodFactsDataSource.kt:OpenFoodFactsDataSource.Companion$private fun isLiquid: Boolean</ID>
+    <ID>ReturnCount:StepsRepository.kt:StepsRepository$suspend fun stepsPerDay: Map&lt;LocalDate, Long&gt;</ID>
+    <ID>ReturnCount:TableOutline.kt:TableOutline$fun fit: Fit?</ID>
+    <ID>SwallowedException:LabelAnalyzer.kt:LabelAnalyzer$e: RuntimeException</ID>
+    <ID>SwallowedException:SyncWorker.kt:SyncWorker$e: IOException</ID>
+    <ID>SwallowedException:SyncWorker.kt:SyncWorker$e: SQLiteException</ID>
+    <ID>SwallowedException:SyncWorker.kt:SyncWorker$e: SerializationException</ID>
+    <ID>ThrowsCount:PocketBaseClient.kt:PocketBaseClient$suspend fun upsert</ID>
+    <ID>TooGenericExceptionCaught:LabelAnalyzer.kt:LabelAnalyzer$e: RuntimeException</ID>
+    <ID>TooGenericExceptionCaught:OpenFoodFactsDataSource.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Results.kt:e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SettingsViewModel.kt:SettingsViewModel$e: Exception</ID>
+    <ID>TooManyFunctions:BodyDaos.kt:WeightDao : SyncDao</ID>
+    <ID>TooManyFunctions:Glass.kt:dev.southstar21.kaloria.core.designsystem.component.Glass.kt</ID>
+    <ID>TooManyFunctions:SessionStore.kt:SessionStore</ID>
+    <ID>TooManyFunctions:TableOutline.kt:TableOutline</ID>
+    <ID>TooManyFunctions:Tables.kt:RoomTable&lt;E : SyncedEntity&gt; : SyncTable</ID>
+    <ID>TooManyFunctions:Transitions.kt:dev.southstar21.kaloria.navigation.Transitions.kt</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:internal const val MaxBgStops = 16</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:internal const val MaxBlobs = 12</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:internal const val MaxMaskStops = 12</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val BeamMaskCount = 20f</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val BloomBlurDp = 8f</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val Brightness = 1.3f</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val DurationSeconds = 1.96f</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val FadeInMs = 600</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val FadeOutMs = 500</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val HueRange = 30f</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val HueShiftPeriod = 12f</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val InnerEdgeMaskDp = 28f</ID>
+    <ID>TopLevelPropertyNaming:BorderBeam.kt:private const val InnerShadowBlurDp = 9f</ID>
+    <ID>TopLevelPropertyNaming:ThinkingOrb.kt:/** The still frame shown without motion, in seconds of the orb's clock (the original's choice). */ private const val StillFrame = 0.6f</ID>
+    <ID>TopLevelPropertyNaming:ThinkingOrb.kt:// The 64 px preset: count 0.42 (√ per lattice side), radii 1.15, scanMul 4.08, dimBase 0.45. private const val GlobeSpeed = 2.015f</ID>
+    <ID>TopLevelPropertyNaming:ThinkingOrb.kt:private const val GhostN = 40</ID>
+    <ID>TopLevelPropertyNaming:ThinkingOrb.kt:private const val MinRadius = 0.3f</ID>
+    <ID>TopLevelPropertyNaming:ThinkingOrb.kt:private const val OrbitN = 12</ID>
+    <ID>TopLevelPropertyNaming:ThinkingOrb.kt:private const val OrbitsSpeed = 1.885f</ID>
+    <ID>TopLevelPropertyNaming:ThinkingOrb.kt:private const val Particles = 3</ID>
+  </CurrentIssues>
+</SmellBaseline>

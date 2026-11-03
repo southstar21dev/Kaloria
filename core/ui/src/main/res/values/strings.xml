@@ -1,0 +1,32 @@
+<resources>
+    <!-- FoodRow -->
+    <string name="food_row_favorite">Favorite</string>
+    <string name="food_row_kcal_per">kcal / %1$s</string>
+    <string name="food_source_label">Scanned label</string>
+    <string name="food_source_open_food_facts">Open Food Facts</string>
+    <string name="food_source_usda">USDA</string>
+    <string name="food_source_manual">Entered manually</string>
+
+    <!-- PortionSheet -->
+    <string name="portion_sheet_delete_entry">Delete entry</string>
+    <string name="portion_sheet_serving_pill">%1$s · %2$s %3$s</string>
+    <string name="portion_sheet_add_serving">Serving</string>
+    <string name="portion_sheet_kcal">kcal</string>
+    <string name="portion_sheet_protein">Protein</string>
+    <string name="portion_sheet_carbs">Carbs</string>
+    <string name="portion_sheet_fat">Fat</string>
+    <string name="portion_sheet_ok">OK</string>
+    <string name="portion_sheet_cancel">Cancel</string>
+    <string name="portion_sheet_time_eaten">Time eaten</string>
+    <string name="portion_sheet_amount">Amount</string>
+
+    <!-- ServingDialog -->
+    <string name="serving_dialog_new_title">New serving</string>
+    <string name="serving_dialog_edit_title">Edit serving</string>
+    <string name="serving_dialog_name">Name</string>
+    <string name="serving_dialog_name_placeholder">1 can</string>
+    <string name="serving_dialog_amount">Amount</string>
+    <string name="serving_dialog_save">Save</string>
+    <string name="serving_dialog_delete">Delete</string>
+    <string name="serving_dialog_cancel">Cancel</string>
+</resources>

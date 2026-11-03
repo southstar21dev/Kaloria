@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [dev, staging, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Three jobs in parallel rather than one long serial run. Each restores the shared Gradle cache.
+  tests:
+    name: Unit and screenshot tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      # The build logic targets JDK 17. Robolectric's SDK 36 sandbox needs JDK 21 to run tests;
+      # the last version listed becomes the default.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # verifyRoborazziDebug runs every debug unit test, comparing screenshots as it goes.
+      - name: Unit tests and screenshot checks
+        run: ./gradlew verifyRoborazziDebug :core:model:test --continue --stacktrace
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/outputs/roborazzi/
+          retention-days: 7
+
+  checks:
+    name: Build, lint and static analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Build, lint, detekt and formatting
+        env:
+          # Optional repository secret; without it USDA search falls back to DEMO_KEY.
+          USDA_API_KEY: ${{ secrets.USDA_API_KEY }}
+        run: ./gradlew assembleDebug lintDebug detekt spotlessCheck --continue --stacktrace
+
+      - name: Upload lint reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-reports
+          path: |
+            **/build/reports/lint-results-*.html
+            build/reports/detekt/
+          retention-days: 7
+
+  release:
+    name: Release build (R8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Catches shrinker problems (missing keep rules) before they reach a release.
+      - name: Assemble release
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+  server:
+    name: Server image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the PocketBase image
+        run: docker build server

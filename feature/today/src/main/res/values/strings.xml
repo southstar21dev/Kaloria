@@ -1,0 +1,44 @@
+<resources>
+    <string name="today_greeting_morning">Good morning</string>
+    <string name="today_greeting_afternoon">Good afternoon</string>
+    <string name="today_greeting_evening">Good evening</string>
+    <string name="today_save">Save</string>
+    <string name="today_header_of_goal_today">%1$s of %2$s kcal today</string>
+    <string name="today_header_of_goal">%1$s of %2$s kcal</string>
+    <string name="today_header_eaten_today">%1$s kcal eaten today</string>
+    <string name="today_header_eaten">%1$s kcal eaten</string>
+    <string name="today_go_to_today">Today</string>
+    <string name="today_settings">Settings</string>
+    <string name="today_calories_title">Calories</string>
+    <string name="today_eaten_so_far">eaten so far</string>
+    <string name="today_calories_over_goal">over your goal</string>
+    <string name="today_calories_left">left for the day</string>
+    <string name="today_kcal">kcal</string>
+    <string name="today_macros_title">Macros</string>
+    <string name="today_macros_of_goals">of your goals</string>
+    <string name="today_protein">Protein</string>
+    <string name="today_carbs">Carbs</string>
+    <string name="today_fat">Fat</string>
+    <string name="today_steps_title">Steps</string>
+    <string name="today_steps_of_goal">of %1$s</string>
+    <string name="today_health_connect">Health Connect</string>
+    <string name="today_connect">Connect</string>
+    <string name="today_update_health_connect">Update Health Connect</string>
+    <string name="today_fiber_title">Fiber</string>
+    <string name="today_fiber_of_goal">%1$s of %2$d g</string>
+    <string name="today_no_goal">no goal set</string>
+    <string name="today_logged_today">Logged today</string>
+    <string name="today_logged">Logged</string>
+    <plurals name="today_entries">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
+    <string name="today_logged_empty">Nothing yet. Tap + to search, scan a barcode or a nutrition label.</string>
+    <string name="today_entry_details">%1$s · %2$d %3$s · P %4$s · C %5$s · F %6$s</string>
+    <string name="today_micronutrients_title">Micronutrients</string>
+    <string name="today_micronutrients_tracked">%1$d tracked</string>
+    <string name="today_micronutrients_empty">No micronutrient data in today\'s foods.</string>
+    <string name="today_micro_sugars">Sugars</string>
+    <string name="today_micro_saturated_fat">Saturated fat</string>
+    <string name="today_micro_salt">Salt</string>
+</resources>

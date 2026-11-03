@@ -1,0 +1,49 @@
+name: Update screenshots
+
+# Baselines are recorded here because CI compares on Linux, and macOS renders glass differently.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  record:
+    name: Record baselines
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Record screenshots
+        run: ./gradlew recordRoborazziDebug --stacktrace
+
+      - name: Commit changes
+        run: |
+          git add -- '*/src/test/screenshots/*.png'
+          if git diff --cached --quiet; then
+            echo "Screenshots are already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test: update screenshot baselines"
+          git push
+
+      # Pushes made with GITHUB_TOKEN don't trigger workflows.
+      - name: Start CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref "$GITHUB_REF_NAME"

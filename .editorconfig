@@ -1,0 +1,24 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.{kt,kts}]
+ktlint_code_style = android_studio
+# Compose code here is written wide on purpose; lines aren't wrapped at a fixed width.
+max_line_length = off
+ktlint_function_naming_ignore_when_annotated_with = Composable
+ij_kotlin_allow_trailing_comma = true
+ij_kotlin_allow_trailing_comma_on_call_site = true
+# Files are named for what they hold (TodayNavigation.kt), not their single class.
+ktlint_standard_filename = disabled
+# Constant-like vals (palettes, shapes, shader sources) are PascalCase, as in Compose itself.
+ktlint_standard_property-naming = disabled
