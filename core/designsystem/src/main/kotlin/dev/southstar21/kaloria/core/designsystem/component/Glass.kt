@@ -256,6 +256,13 @@ private fun DrawScope.paintField(softness: Float = 1f) {
     }
 }
 
+/**
+ * Whether the colour field is baked on a background thread (the app: it keeps the first frame
+ * quick). Screenshot tests set it to false so the bake finishes before the capture every time;
+ * otherwise whether the frosted copy is ready by then depends on timing.
+ */
+val LocalBakeFieldInBackground = staticCompositionLocalOf { true }
+
 @Composable
 private fun SilverField(modifier: Modifier, frost: FrostedField) {
     // Static, so baked into bitmaps once per size: every glass element redraws the field behind it
@@ -264,9 +271,14 @@ private fun SilverField(modifier: Modifier, frost: FrostedField) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
-    val field by produceState<ImageBitmap?>(null, size) {
+    val inBackground = LocalBakeFieldInBackground.current
+    val field by produceState<ImageBitmap?>(null, size, inBackground) {
         if (size == IntSize.Zero) return@produceState
-        val (fieldImage, frosted) = withContext(Dispatchers.Default) { bakeField(size, density, layoutDirection) }
+        val (fieldImage, frosted) = if (inBackground) {
+            withContext(Dispatchers.Default) { bakeField(size, density, layoutDirection) }
+        } else {
+            bakeField(size, density, layoutDirection)
+        }
         value = fieldImage
         frost.image = frosted
         frost.fieldSize = size

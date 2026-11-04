@@ -9,6 +9,7 @@ import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import dev.southstar21.kaloria.core.designsystem.component.GlassBackdrop
+import dev.southstar21.kaloria.core.designsystem.component.LocalBakeFieldInBackground
 import dev.southstar21.kaloria.core.designsystem.component.LocalDockPadding
 import dev.southstar21.kaloria.core.designsystem.theme.KaloriaTheme
 
@@ -27,8 +28,11 @@ fun ComposeContentTestRule.screenshot(
 ) {
     setContent {
         KaloriaTheme {
-            GlassBackdrop {
-                CompositionLocalProvider(LocalDockPadding provides if (dock) 116.dp else 0.dp) { content() }
+            // Bake the background on the main thread, so it's always finished when the capture is taken.
+            CompositionLocalProvider(LocalBakeFieldInBackground provides false) {
+                GlassBackdrop {
+                    CompositionLocalProvider(LocalDockPadding provides if (dock) 116.dp else 0.dp) { content() }
+                }
             }
         }
     }
