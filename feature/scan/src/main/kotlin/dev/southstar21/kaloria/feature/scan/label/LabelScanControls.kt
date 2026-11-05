@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -78,10 +79,11 @@ internal fun NanoChip(status: NanoStatus?, aiOn: Boolean, onToggle: () -> Unit, 
         NanoStatus.Unavailable -> stringResource(R.string.label_scan_ai_unavailable)
         null -> stringResource(R.string.label_scan_ai_checking)
     }
+    // A switch (announced on or off) while the model is ready; a plain button to download it.
     val action = when (status) {
-        NanoStatus.Available -> onToggle
-        NanoStatus.Downloadable -> onDownload
-        else -> null
+        NanoStatus.Available -> Modifier.toggleable(value = aiOn, role = Role.Switch, onValueChange = { onToggle() })
+        NanoStatus.Downloadable -> Modifier.clickable(role = Role.Button, onClick = onDownload)
+        else -> Modifier
     }
     val lit = status == NanoStatus.Available && aiOn
     val tint by animateColorAsState(if (lit) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, tween(220), label = "ai")
@@ -90,7 +92,7 @@ internal fun NanoChip(status: NanoStatus?, aiOn: Boolean, onToggle: () -> Unit, 
             .glass(CircleShape)
             // The AI at work: the beam rides the chip while it's on.
             .borderBeam(cornerRadius = 100.dp, active = lit, dark = true)
-            .then(if (action != null) Modifier.clickable(role = Role.Switch, onClick = action) else Modifier)
+            .then(action)
             .animateContentSize(spring(dampingRatio = 0.85f, stiffness = 500f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -4,6 +4,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,9 +31,14 @@ fun EndCursorTextField(
     decorationBox: @Composable (innerTextField: @Composable () -> Unit) -> Unit = { it() },
 ) {
     var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
-    if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
+    // A value from outside shows at once, cursor at the end, without writing state mid-composition;
+    // the effect then adopts it as the field's own.
+    val shown = if (field.text == value) field else TextFieldValue(value, TextRange(value.length))
+    LaunchedEffect(value) {
+        if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
+    }
     BasicTextField(
-        value = field,
+        value = shown,
         onValueChange = { new ->
             field = new
             if (new.text != value) onValueChange(new.text)
@@ -42,6 +48,6 @@ fun EndCursorTextField(
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         keyboardOptions = keyboardOptions,
         decorationBox = decorationBox,
-        modifier = modifier.onFocusChanged { if (it.isFocused) field = field.copy(selection = TextRange(field.text.length)) },
+        modifier = modifier.onFocusChanged { if (it.isFocused) field = shown.copy(selection = TextRange(shown.text.length)) },
     )
 }

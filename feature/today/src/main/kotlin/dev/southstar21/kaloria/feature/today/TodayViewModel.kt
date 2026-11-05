@@ -22,7 +22,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -62,15 +61,16 @@ class TodayViewModel @Inject constructor(
     val stepsPermissions get() = stepsRepository.permissions
     fun stepsPermissionContract() = stepsRepository.permissionContract()
 
-    /** The day "today" was when last seen, to follow the date past midnight. */
-    private var lastToday = LocalDate.now(clock)
+    /** The day "today" was when last seen; refreshed on resume, to follow the date past midnight. */
+    private val today = MutableStateFlow(LocalDate.now(clock))
 
     /** Called on resume: if the app sat open past midnight, move from yesterday to the new today. */
     fun onResume() {
         val now = LocalDate.now(clock)
+        val lastToday = today.value
         if (now != lastToday) {
             if (date.value == lastToday) date.value = now
-            lastToday = now
+            today.value = now
         }
         refreshSteps()
     }
@@ -91,17 +91,17 @@ class TodayViewModel @Inject constructor(
     private val date = MutableStateFlow(LocalDate.now(clock))
 
     val uiState: StateFlow<TodayUiState> = date.flatMapLatest { day ->
-        combine(diary.entries(day), goalsRepository.goals) { entries, goals ->
+        combine(diary.entries(day), goalsRepository.goals, today) { entries, goals, today ->
             TodayUiState(
                 date = day,
-                today = LocalDate.now(clock),
+                today = today,
                 entries = entries,
                 totals = entries.map { it.nutrients }.sum(),
                 goals = goals,
                 loading = false,
             )
         }
-    }.flowOn(compute).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayUiState(date.value, date.value))
+    }.flowOn(compute).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayUiState(date.value, today.value))
 
     val selectedDate: StateFlow<LocalDate> = date
 

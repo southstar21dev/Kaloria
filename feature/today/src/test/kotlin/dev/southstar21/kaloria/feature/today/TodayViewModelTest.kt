@@ -176,6 +176,19 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun `resuming after midnight on an earlier day still moves today on`() = runTest {
+        viewModel.previousDay()
+        awaitState { it.date == yesterday }
+        clock.now = local("2026-10-31T00:05")
+
+        viewModel.onResume()
+
+        val state = awaitState { it.today == today.plusDays(1) }
+        assertEquals(yesterday, state.date)
+        assertEquals(listOf("dinner-yesterday"), state.entries.map { it.id })
+    }
+
+    @Test
     fun `updating an entry keeps its day and changes amount and time`() = runTest {
         val original = diary.entries.value.first { it.id == "dinner-yesterday" }
 

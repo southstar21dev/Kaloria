@@ -3,7 +3,7 @@ package dev.southstar21.kaloria.feature.scan.label
 import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
@@ -51,6 +53,7 @@ import dev.southstar21.kaloria.core.designsystem.component.borderBeam
 import dev.southstar21.kaloria.core.scanner.label.LiveLabel
 import dev.southstar21.kaloria.core.scanner.label.Pt
 import dev.southstar21.kaloria.feature.scan.R
+import dev.southstar21.kaloria.feature.scan.camera.ScanAccent
 
 /**
  * The table found in the camera's view, flattened as it will be read: updated live as the phone
@@ -86,7 +89,7 @@ internal fun LiveFlatCard(flat: Bitmap?) {
  * will be straightened. Each new outline glides in from the last rather than jumping.
  */
 @Composable
-internal fun LiveOutline(live: LiveLabel?, accent: Color = Color(0xFFA9C8EA)) {
+internal fun LiveOutline(live: LiveLabel?, accent: Color = ScanAccent) {
     var start by remember { mutableStateOf(emptyList<Pt>()) }
     var target by remember { mutableStateOf(emptyList<Pt>()) }
     var outlineSize by remember { mutableIntStateOf(0) }
@@ -102,8 +105,15 @@ internal fun LiveOutline(live: LiveLabel?, accent: Color = Color(0xFFA9C8EA)) {
         outlineSize = live.outline.size
         gridLines = live.grid.map { it.size }
         glide.snapTo(0f)
-        glide.animateTo(1f, tween(220, easing = FastOutSlowInEasing))
+        glide.animateTo(1f, tween(220, easing = EmphasizedEasing))
     }
+    // Reused every frame rather than allocated per draw.
+    val outline = remember { Path() }
+    val line = remember { Path() }
+    val density = LocalDensity.current
+    val gridStroke = remember(density) { Stroke(with(density) { 1.dp.toPx() }) }
+    val glowStroke = remember(density) { Stroke(with(density) { 9.dp.toPx() }, join = StrokeJoin.Round) }
+    val edgeStroke = remember(density) { Stroke(with(density) { 3.dp.toPx() }, join = StrokeJoin.Round) }
     Canvas(
         Modifier
             .fillMaxSize()
@@ -114,26 +124,30 @@ internal fun LiveOutline(live: LiveLabel?, accent: Color = Color(0xFFA9C8EA)) {
     ) {
         if (target.isEmpty() || shown == 0f) return@Canvas
         val points = blend(start, target, glide.value).map { Offset(it.x * size.width, it.y * size.height) }
-        val outline = Path().apply {
-            moveTo(points[0].x, points[0].y)
-            for (i in 1 until outlineSize) lineTo(points[i].x, points[i].y)
-            close()
-        }
+        outline.polyline(points, 0, outlineSize)
+        outline.close()
         drawRect(Color.Black.copy(alpha = 0.42f))
         drawPath(outline, Color.Black, blendMode = BlendMode.Clear)
         var at = outlineSize
         for (count in gridLines) {
-            val line = Path().apply {
-                moveTo(points[at].x, points[at].y)
-                for (i in at + 1 until at + count) lineTo(points[i].x, points[i].y)
-            }
-            drawPath(line, Color.White.copy(alpha = 0.3f), style = Stroke(1.dp.toPx()))
+            line.polyline(points, at, at + count)
+            drawPath(line, Color.White.copy(alpha = 0.3f), style = gridStroke)
             at += count
         }
-        drawPath(outline, accent.copy(alpha = 0.3f), style = Stroke(9.dp.toPx(), join = StrokeJoin.Round))
-        drawPath(outline, accent, style = Stroke(3.dp.toPx(), join = StrokeJoin.Round))
+        drawPath(outline, accent.copy(alpha = 0.3f), style = glowStroke)
+        drawPath(outline, accent, style = edgeStroke)
     }
 }
+
+/** Replaces the path with a line through [points] from index [from] until [until]. */
+private fun Path.polyline(points: List<Offset>, from: Int, until: Int) {
+    rewind()
+    moveTo(points[from].x, points[from].y)
+    for (i in from + 1 until until) lineTo(points[i].x, points[i].y)
+}
+
+/** Material's emphasized easing, for a glide that settles firmly. */
+private val EmphasizedEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 private fun blend(a: List<Pt>, b: List<Pt>, t: Float): List<Pt> = if (a.size != b.size) b else a.indices.map { i -> a[i] + (b[i] - a[i]) * t }
 
@@ -145,14 +159,14 @@ private fun blend(a: List<Pt>, b: List<Pt>, t: Float): List<Pt> = if (a.size != 
 internal fun FlatTablePreview(table: Bitmap?, modifier: Modifier = Modifier) {
     // Keeps showing the last table while it fades out.
     var shown by remember { mutableStateOf<Bitmap?>(null) }
-    if (table != null) shown = table
+    SideEffect { if (table != null) shown = table }
     AnimatedVisibility(
         visible = table != null,
         modifier = modifier,
         enter = fadeIn(tween(220)) + scaleIn(spring(dampingRatio = 0.8f, stiffness = 380f), initialScale = 0.9f),
         exit = fadeOut(tween(180)),
     ) {
-        val image = shown ?: return@AnimatedVisibility
+        val image = table ?: shown ?: return@AnimatedVisibility
         val shape = RoundedCornerShape(20.dp)
         Image(
             bitmap = remember(image) { image.asImageBitmap() },

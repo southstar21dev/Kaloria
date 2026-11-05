@@ -102,11 +102,19 @@ internal fun BoxScope.GlassDock(
     val haptics = LocalHapticFeedback.current
 
     AnimatedVisibility(menuOpen, enter = fadeIn(tween(180)), exit = fadeOut(tween(160)), modifier = Modifier.matchParentSize()) {
+        // Tapping outside closes the menu; screen readers get it as a labelled button.
+        val closeLabel = stringResource(R.string.dock_close_add_menu)
         Box(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.22f))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onMenuOpenChange(false) },
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClickLabel = closeLabel,
+                    role = Role.Button,
+                ) { onMenuOpenChange(false) }
+                .semantics { contentDescription = closeLabel },
         )
     }
 

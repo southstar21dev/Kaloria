@@ -57,7 +57,9 @@ class MainActivity : ComponentActivity() {
         // Always the light silver theme, so the system bars always get dark icons.
         enableEdgeToEdge(SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT), SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) shortcut.value = Shortcut.from(intent)
+        // Only a fresh launch: not a restore, and not a relaunch from recents replaying the old intent.
+        val launchedFromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !launchedFromHistory) shortcut.value = Shortcut.from(intent)
         setContent {
             val preferences by viewModel.preferences.collectAsStateWithLifecycle()
             KaloriaTheme(

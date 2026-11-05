@@ -3,6 +3,9 @@ package dev.southstar21.kaloria.widget
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -33,10 +36,12 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import dev.southstar21.kaloria.core.designsystem.component.grouped
 import dev.southstar21.kaloria.core.designsystem.theme.KaloriaColors
+import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** The app's own deep-ink palette, so the widget follows neither the wallpaper nor the system theme. */
@@ -47,15 +52,18 @@ const val ACTION_SCAN_BARCODE = "dev.southstar21.kaloria.action.SCAN_BARCODE"
 const val ACTION_SEARCH_FOOD = "dev.southstar21.kaloria.action.SEARCH_FOOD"
 
 /**
- * Drawn from one read of today's data. Writes push a redraw (see GlanceWidgetUpdater) and an alarm
- * redraws it at midnight, so it never needs to watch the database or wake up on a timer.
+ * Drawn from a read of today's data. Writes push a redraw (see GlanceWidgetUpdater) and an alarm
+ * redraws it at midnight, so it never needs to wake up on a timer. While a session is alive the
+ * data is watched, because a redraw pushed then recomposes that session instead of starting anew.
  */
 class KaloriaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val entryPoint = context.widgetEntryPoint()
-        val data = entryPoint.todayNow()
+        val day = LocalDate.now(entryPoint.clock())
+        val initial = entryPoint.dayData(day).first()
         NewDayAlarm.schedule(context, entryPoint.clock())
         provideContent {
+            val data by remember { entryPoint.dayData(day) }.collectAsState(initial)
             GlanceTheme(colors = KaloriaWidgetColors) { Content(context, data) }
         }
     }
@@ -125,15 +133,20 @@ private fun Content(context: Context, data: WidgetData) {
         Spacer(GlanceModifier.defaultWeight())
         Row(GlanceModifier.fillMaxWidth()) {
             Pill(context.getString(R.string.widget_scan), colors.primary, colors.onPrimary, GlanceModifier.defaultWeight()) {
-                actionStartActivity(Intent(ACTION_SCAN_BARCODE).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                actionStartActivity(shortcutIntent(context, ACTION_SCAN_BARCODE))
             }
             Spacer(GlanceModifier.width(8.dp))
             Pill(context.getString(R.string.widget_search), colors.secondaryContainer, colors.onSecondaryContainer, GlanceModifier.defaultWeight()) {
-                actionStartActivity(Intent(ACTION_SEARCH_FOOD).setPackage(context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                actionStartActivity(shortcutIntent(context, ACTION_SEARCH_FOOD))
             }
         }
     }
 }
+
+/** Brings back the running app (onNewIntent) rather than recreating it, or starts it if it isn't running. */
+private fun shortcutIntent(context: Context, action: String) = Intent(action)
+    .setPackage(context.packageName)
+    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
 
 @Composable
 private fun Pill(

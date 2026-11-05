@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,6 +46,7 @@ internal fun PairRow(start: @Composable (Modifier) -> Unit, end: @Composable (Mo
 
 @Composable
 internal fun Checks(form: FoodForm, errors: FormErrors, includeRequired: Boolean = false) {
+    val mismatch = remember(form) { form.energyMismatchKcal?.let { it to form.nutrients().atwaterKcal } }
     val messages = buildList {
         if (includeRequired && errors.name) add(stringResource(R.string.food_editor_check_name))
         if (includeRequired && errors.energy) add(stringResource(R.string.food_editor_check_energy))
@@ -53,11 +55,11 @@ internal fun Checks(form: FoodForm, errors: FormErrors, includeRequired: Boolean
         if (errors.macrosOver100) add(stringResource(R.string.food_editor_check_macros_over))
         if (errors.implausible) add(stringResource(R.string.food_editor_check_implausible, form.unit.symbol, MAX_KCAL_PER_100.toInt()))
         if (errors.unparseable) add(stringResource(R.string.food_editor_check_unparseable))
-        form.energyMismatchKcal?.let { diff ->
+        mismatch?.let { (diff, implied) ->
             add(
                 stringResource(
                     if (diff > 0) R.string.food_editor_check_mismatch_more else R.string.food_editor_check_mismatch_less,
-                    form.nutrients().atwaterKcal.kcalText(),
+                    implied.kcalText(),
                     kotlin.math.abs(diff).roundToInt(),
                 ),
             )

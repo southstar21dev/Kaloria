@@ -101,7 +101,7 @@ private fun MacroRow(label: String, value: Double, target: Int?) {
         Row {
             Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             Text(
-                value.roundToDisplay() + (target?.let { "/$it" } ?: " g"),
+                target?.let { "${value.roundToDisplay()}/$it" } ?: stringResource(R.string.today_grams, value.roundToDisplay()),
                 style = MaterialTheme.typography.labelMedium,
                 color = if (over) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
             )
@@ -164,7 +164,7 @@ internal fun FiberTile(value: Double, target: Int?, modifier: Modifier = Modifie
             target?.let { stringResource(R.string.today_fiber_of_goal, value.roundToDisplay(), it) } ?: stringResource(R.string.today_no_goal),
         )
         Spacer(Modifier.weight(1f).height(12.dp))
-        BigNumber(value.roundToDisplay(), "g", over = target != null && value > target)
+        BigNumber(value.roundToDisplay(), stringResource(R.string.today_grams_unit), over = target != null && value > target)
         Spacer(Modifier.height(6.dp))
         Meter(if (target != null && target > 0) (value / target).toFloat() else 0f)
     }

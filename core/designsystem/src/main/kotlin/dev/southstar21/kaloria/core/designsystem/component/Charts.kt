@@ -1,9 +1,11 @@
 package dev.southstar21.kaloria.core.designsystem.component
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
@@ -12,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -44,11 +47,12 @@ fun BarChart(
 ) {
     val progress = remember(values) { Animatable(0f) }
     // Bars grow one after another, left to right, rather than all at once.
-    LaunchedEffect(values) { progress.animateTo(1f, androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing)) }
+    LaunchedEffect(values) { progress.animateTo(1f, tween(600, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f))) }
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     val goalColor = MaterialTheme.colorScheme.onSurfaceVariant
     // Worked out once, not on each of the animation's frames.
     val top = remember(values, goal) { (values.filterNotNull() + listOfNotNull(goal)).maxOrNull()?.takeIf { it > 0 }?.times(1.1) ?: 1.1 }
+    val dash = remember { PathEffect.dashPathEffect(floatArrayOf(10f, 10f)) }
     Column(modifier.semantics { contentDescription = description }) {
         Canvas(Modifier.fillMaxWidth().height(height)) {
             val slot = size.width / values.size.coerceAtLeast(1)
@@ -72,7 +76,7 @@ fun BarChart(
             }
             goal?.let {
                 val y = (size.height - it / top * size.height).toFloat()
-                drawLine(goalColor, Offset(0f, y), Offset(size.width, y), 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)))
+                drawLine(goalColor, Offset(0f, y), Offset(size.width, y), 1.5.dp.toPx(), pathEffect = dash)
             }
         }
         if (labels.isNotEmpty()) AxisLabels(labels, slots = values.size)
@@ -103,28 +107,39 @@ fun LineChart(
                 modifier = Modifier.align(androidx.compose.ui.Alignment.End),
             )
         }
-        Canvas(Modifier.fillMaxWidth().height(height)) {
-            if (ys.isEmpty()) return@Canvas
-            val min = ys.min()
-            val max = ys.max()
-            val span = (max - min).takeIf { it > 0.1 } ?: 1.0
-            fun point(i: Int) = Offset(
-                xs[i] * size.width,
-                (size.height * 0.9f - ((ys[i] - min) / span * size.height * 0.8f)).toFloat(),
-            )
-            repeat(3) { r ->
-                val y = size.height * (0.1f + 0.4f * r)
-                drawLine(grid, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
-            }
-            val path = Path()
-            val drawn = (ys.size * progress.value).toInt().coerceIn(1, ys.size)
-            for (i in 0 until drawn) {
-                val p = point(i)
-                if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
-            }
-            drawPath(path, color, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
-            for (i in 0 until drawn) drawCircle(color, 4.dp.toPx(), point(i))
-        }
+        Spacer(
+            Modifier.fillMaxWidth().height(height).drawWithCache {
+                // Kept across the animation's frames; only the path's points change.
+                val path = Path()
+                val stroke = Stroke(3.dp.toPx(), cap = StrokeCap.Round)
+                val gridWidth = 1.dp.toPx()
+                val dot = 4.dp.toPx()
+                onDrawBehind {
+                    // Only points with both coordinates are drawn.
+                    val count = minOf(xs.size, ys.size)
+                    if (count == 0) return@onDrawBehind
+                    val min = ys.min()
+                    val max = ys.max()
+                    val span = (max - min).takeIf { it > 0.1 } ?: 1.0
+                    fun point(i: Int) = Offset(
+                        xs[i] * size.width,
+                        (size.height * 0.9f - ((ys[i] - min) / span * size.height * 0.8f)).toFloat(),
+                    )
+                    repeat(3) { r ->
+                        val y = size.height * (0.1f + 0.4f * r)
+                        drawLine(grid, Offset(0f, y), Offset(size.width, y), gridWidth)
+                    }
+                    path.rewind()
+                    val drawn = (count * progress.value).toInt().coerceIn(1, count)
+                    for (i in 0 until drawn) {
+                        val p = point(i)
+                        if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+                    }
+                    drawPath(path, color, style = stroke)
+                    for (i in 0 until drawn) drawCircle(color, dot, point(i))
+                }
+            },
+        )
         if (ys.isNotEmpty()) {
             Text(
                 valueLabel(ys.min()),

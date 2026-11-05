@@ -12,7 +12,8 @@ import dev.southstar21.kaloria.core.model.Nutrients
 import dev.southstar21.kaloria.core.model.sum
 import java.time.Clock
 import java.time.LocalDate
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -26,8 +27,5 @@ internal fun Context.widgetEntryPoint() = EntryPointAccessors.fromApplication(ap
 
 internal data class WidgetData(val totals: Nutrients, val goals: Goals)
 
-/** Today's totals and the goals, for the day it is when the widget is drawn. */
-internal suspend fun WidgetEntryPoint.todayNow(): WidgetData {
-    val day = LocalDate.now(clock())
-    return WidgetData(diary().entries(day).first().map { it.nutrients }.sum(), goals().goals.first())
-}
+/** A day's totals and the goals, as they change. */
+internal fun WidgetEntryPoint.dayData(day: LocalDate): Flow<WidgetData> = combine(diary().entries(day), goals().goals) { entries, goals -> WidgetData(entries.map { it.nutrients }.sum(), goals) }

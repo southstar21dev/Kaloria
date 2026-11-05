@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -101,10 +102,17 @@ internal fun FoodEditorScreen(
     val listState = rememberLazyListState()
     val leave = { if (state.changed) confirmDiscard = true else onBack() }
     BackHandler(onBack = leave)
-    // A failed save shows what's wrong at the top of the form.
-    LaunchedEffect(state.saveAttempts) { if (state.saveAttempts > 0) listState.animateScrollToItem(0) }
+    // A failed save shows what's wrong at the top of the form, once per attempt: not again after rotation.
+    var scrolledForAttempt by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(state.saveAttempts) {
+        if (state.saveAttempts > 0 && state.saveAttempts != scrolledForAttempt) {
+            scrolledForAttempt = state.saveAttempts
+            listState.animateScrollToItem(0)
+        }
+    }
     val form = state.form
-    val errors = form.errors
+    // Parsing every field isn't free; only redo it when the form changes.
+    val errors = remember(form) { form.errors }
     val show = state.showErrors
     val warn = state.scan?.warnings.orEmpty()
     fun flagged(field: String) = warn[field]?.firstOrNull()
@@ -121,7 +129,7 @@ internal fun FoodEditorScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (show && errors.any) {
-                item(key = "errors") {
+                item(key = "errors", contentType = "errors") {
                     ContentCard(Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.food_editor_cant_save), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.height(4.dp))
@@ -129,8 +137,8 @@ internal fun FoodEditorScreen(
                     }
                 }
             }
-            state.scan?.let { scan -> item(key = "scan") { ScanCard(scan) } }
-            item(key = "identity") {
+            state.scan?.let { scan -> item(key = "scan", contentType = "scan") { ScanCard(scan) } }
+            item(key = "identity", contentType = "identity") {
                 ContentCard(Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
@@ -140,7 +148,7 @@ internal fun FoodEditorScreen(
                             singleLine = true,
                             isError = show && errors.name,
                             supportingText = if (show && errors.name) ({ Text(stringResource(R.string.food_editor_required)) }) else null,
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
@@ -148,7 +156,7 @@ internal fun FoodEditorScreen(
                             onValueChange = { v -> onEdit { copy(brand = v) } },
                             label = { Text(stringResource(R.string.food_editor_brand_optional)) },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
@@ -156,7 +164,7 @@ internal fun FoodEditorScreen(
                             onValueChange = { v -> onEdit { copy(barcode = v.filter(Char::isDigit)) } },
                             label = { Text(stringResource(R.string.food_editor_barcode_optional)) },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(4.dp))
@@ -174,7 +182,7 @@ internal fun FoodEditorScreen(
                 }
             }
 
-            item(key = "macros") {
+            item(key = "macros", contentType = "macros") {
                 ContentCard(Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.food_editor_nutrition_per_100, form.unit.symbol), style = MaterialTheme.typography.titleSmall)
@@ -245,11 +253,11 @@ internal fun FoodEditorScreen(
                 }
             }
 
-            item(key = "micros") { MicrosCard(form, onEdit) }
-            item(key = "servings") { ServingsCard(form, onEdit) }
+            item(key = "micros", contentType = "micros") { MicrosCard(form, onEdit) }
+            item(key = "servings", contentType = "servings") { ServingsCard(form, onEdit) }
 
             if (state.existing != null) {
-                item(key = "delete") {
+                item(key = "delete", contentType = "delete") {
                     TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Rounded.DeleteOutline, null)
                         Spacer(Modifier.width(8.dp))
@@ -286,6 +294,7 @@ internal fun FoodEditorScreen(
 
         Button(
             onClick = onSave,
+            enabled = !state.saving,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(start = 16.dp, end = 16.dp, bottom = bottom + 16.dp)

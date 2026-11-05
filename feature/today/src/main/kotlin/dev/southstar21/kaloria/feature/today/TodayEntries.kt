@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.southstar21.kaloria.core.designsystem.component.ContentCard
@@ -107,7 +109,8 @@ internal fun MicroCard(totals: Nutrients, targets: Map<Micronutrient, Double>, m
     val salt = stringResource(R.string.today_micro_salt)
     val rows = remember(totals, targets, sugars, saturatedFat, salt) { microRows(totals, targets, sugars, saturatedFat, salt) }
     val chevron by animateFloatAsState(if (expanded) 180f else 0f, spring(dampingRatio = 0.6f), label = "chevron")
-    ContentCard(modifier.fillMaxWidth(), onClick = { expanded = !expanded }) {
+    val state = stringResource(if (expanded) R.string.today_expanded else R.string.today_collapsed)
+    ContentCard(modifier.fillMaxWidth().semantics { stateDescription = state }, onClick = { expanded = !expanded }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.today_micronutrients_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -67,6 +69,7 @@ internal fun FoodsScreen(
     var headerPx by remember { mutableIntStateOf(0) }
     val intro = rememberIntro()
     val header = with(LocalDensity.current) { headerPx.toDp() }
+    val keyboard = LocalSoftwareKeyboardController.current
     GlassScreen {
         LazyColumn(
             modifier = Modifier.fillMaxSize().glassSource(),
@@ -116,6 +119,8 @@ internal fun FoodsScreen(
                 leadingIcon = { Icon(Icons.Rounded.Search, null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                // Results already filter as you type; search just gets the keyboard out of the way.
+                keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,

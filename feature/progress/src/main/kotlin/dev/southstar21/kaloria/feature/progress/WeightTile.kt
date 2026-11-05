@@ -49,8 +49,8 @@ import dev.southstar21.kaloria.core.designsystem.component.kgText
 import dev.southstar21.kaloria.core.model.HealthAccess
 import dev.southstar21.kaloria.core.model.WeightEntry
 import dev.southstar21.kaloria.core.ui.DecimalField
+import dev.southstar21.kaloria.core.ui.LocalClock
 import dev.southstar21.kaloria.core.ui.parseDecimal
-import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 @Composable
@@ -64,6 +64,8 @@ internal fun WeightTile(
     modifier: Modifier = Modifier,
 ) {
     val points = state.weights
+    val zone = LocalClock.current.zone
+    val formats = rememberProgressFormats()
     ContentCard(modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
@@ -74,12 +76,12 @@ internal fun WeightTile(
                         style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
                     )
                     if (state.latestWeight != null) {
-                        Text(" kg", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
+                        Text(stringResource(R.string.progress_weight_unit), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 6.dp))
                     }
                 }
                 Text(
                     when {
-                        points.size >= 2 -> stringResource(R.string.progress_weight_change, points.last().kilograms - points.first().kilograms, state.range.label)
+                        points.size >= 2 -> stringResource(R.string.progress_weight_change, points.last().kilograms - points.first().kilograms, state.range.label())
                         state.latestWeight == null -> stringResource(R.string.progress_weight_none)
                         else -> stringResource(R.string.progress_weight_latest)
                     },
@@ -118,7 +120,7 @@ internal fun WeightTile(
                         Column(Modifier.weight(1f)) {
                             Text(w.kilograms.kgText(), style = MaterialTheme.typography.labelLarge)
                             Text(
-                                w.loggedAt.atZone(ZoneId.systemDefault()).toLocalDate().format(ShortDate) +
+                                w.loggedAt.atZone(zone).toLocalDate().format(formats.shortDate) +
                                     stringResource(if (w.fromHealth) R.string.progress_weight_from_health else R.string.progress_weight_from_kaloria),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -154,7 +156,7 @@ private fun HealthRow(access: HealthAccess?, syncing: Boolean, onConnect: () -> 
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 Icons.Rounded.Sync,
-                null,
+                if (syncing) stringResource(R.string.progress_health_syncing) else null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = -spin.value },
             )
@@ -189,7 +191,7 @@ internal fun WeightDialog(previous: Double?, onDismiss: () -> Unit, onSave: (Dou
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.progress_weight_dialog_title)) },
-        text = { DecimalField(text, { text = it }, stringResource(R.string.progress_weight_field), suffix = "kg", isError = text.isNotEmpty() && value == null) },
+        text = { DecimalField(text, { text = it }, stringResource(R.string.progress_weight_field), suffix = stringResource(R.string.progress_kg), isError = text.isNotEmpty() && value == null) },
         confirmButton = { TextButton(onClick = { value?.let(onSave) }, enabled = value != null) { Text(stringResource(R.string.progress_save)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.progress_cancel)) } },
     )

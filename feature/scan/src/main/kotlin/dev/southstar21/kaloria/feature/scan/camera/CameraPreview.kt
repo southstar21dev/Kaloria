@@ -1,8 +1,13 @@
 package dev.southstar21.kaloria.feature.scan.camera
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import android.util.Rational
 import android.util.Size
 import android.view.Surface
@@ -50,6 +55,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +69,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Observer
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.common.util.concurrent.ListenableFuture
 import dev.southstar21.kaloria.core.designsystem.component.GlassCard
@@ -72,6 +82,7 @@ import dev.southstar21.kaloria.core.designsystem.component.ThinkingOrb
 import dev.southstar21.kaloria.feature.scan.R
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
@@ -85,33 +96,44 @@ fun CameraPreview(
     onCamera: (Camera) -> Unit = {},
 ) {
     val context = LocalContext.current
-    var granted by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-    }
-    var asked by remember { mutableStateOf(false) }
+    fun hasPermission() = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    var granted by remember { mutableStateOf(hasPermission()) }
+    // Saved, so turning the phone doesn't ask again straight away.
+    var asked by rememberSaveable { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         asked = true
     }
-    LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.CAMERA) }
-
-    if (!granted) {
-        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            GlassCard(Modifier.padding(24.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.camera_access_title), style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        stringResource(R.string.camera_access_body),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                    )
-                    if (asked) Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text(stringResource(R.string.camera_access_allow)) }
-                }
-            }
-        }
-        return
+    LaunchedEffect(Unit) { if (!granted && !asked) launcher.launch(Manifest.permission.CAMERA) }
+    // Picks up access granted (or revoked) in the system settings while the app was in the background.
+    LifecycleResumeEffect(Unit) {
+        granted = hasPermission()
+        onPauseOrDispose {}
     }
 
+    if (!granted) {
+        // Denied for good ("don't ask again", or twice): the system won't show the prompt any more,
+        // so the only way back is the app's settings page.
+        val activity = context.findActivity()
+        val blocked = asked && activity != null && !ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.CAMERA)
+        PermissionCard(
+            blocked = blocked,
+            asked = asked,
+            onAllow = { launcher.launch(Manifest.permission.CAMERA) },
+            onOpenSettings = {
+                context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
+            },
+            modifier = modifier,
+        )
+        return
+    }
+    CameraFeed(useCases, modifier, onCamera)
+}
+
+/** The preview itself, once the camera may be used. */
+@Composable
+private fun CameraFeed(useCases: List<UseCase>, modifier: Modifier, onCamera: (Camera) -> Unit) {
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var surfaceRequest by remember { mutableStateOf<SurfaceRequest?>(null) }
     var camera by remember { mutableStateOf<Camera?>(null) }
@@ -134,26 +156,36 @@ fun CameraPreview(
     // capture) crop to exactly what this view shows, so an analysed frame's crop rect is the screen.
     var viewSize by remember { mutableStateOf(IntSize.Zero) }
     val rotation = LocalView.current.display?.rotation ?: Surface.ROTATION_0
-    LaunchedEffect(lifecycleOwner, useCases, viewSize) {
+    val currentOnCamera by rememberUpdatedState(onCamera)
+    // Only this preview's own use cases are ever unbound: while one scan screen hands over to
+    // another both are composed, and unbinding everything would take the camera from the new one.
+    val bound = remember { mutableListOf<UseCase>() }
+    var unavailable by remember { mutableStateOf(false) }
+    LaunchedEffect(lifecycleOwner, useCases, viewSize, rotation) {
         if (viewSize == IntSize.Zero) return@LaunchedEffect
-        val cameras = ProcessCameraProvider.awaitInstance(context).also { provider = it }
-        val viewPort = ViewPort.Builder(Rational(viewSize.width, viewSize.height), rotation)
-            .setScaleType(ViewPort.FILL_CENTER)
-            .build()
-        val group = UseCaseGroup.Builder().setViewPort(viewPort).addUseCase(preview).apply { useCases.forEach(::addUseCase) }.build()
-        cameras.unbindAll()
-        val bound = runCatching { cameras.bindToLifecycle(lifecycleOwner, enhancedBackCamera(context, cameras, useCases), group) }
-            .getOrElse {
-                // A vendor extension that can't take this combination of use cases: plain camera.
-                cameras.unbindAll()
-                cameras.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, group)
-            }
-        camera = bound
-        onCamera(bound)
+        unavailable = false
+        try {
+            val cameras = ProcessCameraProvider.awaitInstance(context).also { provider = it }
+            val viewPort = ViewPort.Builder(Rational(viewSize.width, viewSize.height), rotation)
+                .setScaleType(ViewPort.FILL_CENTER)
+                .build()
+            val group = UseCaseGroup.Builder().setViewPort(viewPort).addUseCase(preview).apply { useCases.forEach(::addUseCase) }.build()
+            cameras.unbind(*bound.toTypedArray())
+            bound.clear()
+            val cam = cameras.bindGroup(lifecycleOwner, enhancedBackCamera(context, cameras, useCases), group)
+            bound += group.useCases
+            camera = cam
+            currentOnCamera(cam)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // No back camera, or it's disabled by policy or held by another app.
+            unavailable = true
+        }
     }
     // The provider it was bound with, not a blocking get() of a new one on the way out.
     DisposableEffect(lifecycleOwner) {
-        onDispose { runCatching { provider?.unbindAll() } }
+        onDispose { runCatching { provider?.unbind(*bound.toTypedArray()) } }
     }
 
     // Whether the camera is open and streaming, to hand over from the orb to the picture.
@@ -186,8 +218,13 @@ fun CameraPreview(
             )
         }
         // While the camera wakes up: a searching orb, fading into the picture once it streams.
+        if (unavailable) {
+            GlassCard(Modifier.align(Alignment.Center).padding(24.dp)) {
+                Text(stringResource(R.string.camera_unavailable), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            }
+        }
         AnimatedVisibility(
-            visible = !live,
+            visible = !live && !unavailable,
             modifier = Modifier.align(Alignment.Center),
             enter = fadeIn(tween(200)),
             exit = fadeOut(tween(450, delayMillis = 150)) + scaleOut(tween(600, delayMillis = 150), targetScale = 1.15f),
@@ -210,7 +247,45 @@ private suspend fun enhancedBackCamera(context: Context, provider: ProcessCamera
     return extensions.getExtensionEnabledCameraSelector(back, ExtensionMode.AUTO)
 }
 
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 private suspend fun <T> ListenableFuture<T>.await(): T = suspendCancellableCoroutine { cont ->
     addListener({ runCatching { get() }.fold(cont::resume, cont::resumeWithException) }, Runnable::run)
     cont.invokeOnCancellation { cancel(false) }
 }
+
+@Composable
+private fun PermissionCard(blocked: Boolean, asked: Boolean, onAllow: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        GlassCard(Modifier.padding(24.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(stringResource(R.string.camera_access_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(if (blocked) R.string.camera_access_denied_body else R.string.camera_access_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                )
+                if (blocked) {
+                    Button(onClick = onOpenSettings) { Text(stringResource(R.string.camera_access_settings)) }
+                } else if (asked) {
+                    Button(onClick = onAllow) { Text(stringResource(R.string.camera_access_allow)) }
+                }
+            }
+        }
+    }
+}
+
+/** Binds [group], falling back to the plain back camera, and last to taking the camera over. */
+private fun ProcessCameraProvider.bindGroup(owner: LifecycleOwner, selector: CameraSelector, group: UseCaseGroup): Camera = runCatching { bindToLifecycle(owner, selector, group) }
+    // A vendor extension that can't take this combination of use cases: plain camera.
+    .recoverCatching { bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, group) }
+    // The screen being left still holds the camera mid-transition: the new one takes it.
+    .recoverCatching {
+        unbindAll()
+        bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, group)
+    }
+    .getOrThrow()

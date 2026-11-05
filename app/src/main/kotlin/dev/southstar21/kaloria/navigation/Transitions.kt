@@ -12,6 +12,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.ui.unit.IntOffset
+import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.scene.Scene
 import dev.southstar21.kaloria.feature.scan.BarcodeScanKey
@@ -27,20 +28,15 @@ import dev.southstar21.kaloria.feature.scan.LabelScanKey
  * rather than staying visible under the one sliding over it.
  */
 
-/** How the screen on top changed, read by the transition specs. Updated during composition, before the transition starts. */
-internal class NavMotion {
-    var top: NavKey? = null
-        private set
-    var previousTop: NavKey? = null
-        private set
+/** Metadata key under which every entry carries its own NavKey, so the specs can tell what's on top of a scene. */
+private const val MOTION_KEY = "dev.southstar21.kaloria.navigation.key"
 
-    fun update(current: NavKey?) {
-        if (current != top) {
-            previousTop = top
-            top = current
-        }
-    }
-}
+/** Tags an entry with its key; the transition specs read it back from the scenes changing. */
+internal fun NavEntry<NavKey>.withMotionKey(key: NavKey): NavEntry<NavKey> = NavEntry(key, contentKey, metadata + (MOTION_KEY to key)) { Content() }
+
+/** The screen on top of a scene. */
+private val Scene<NavKey>.top: NavKey?
+    get() = entries.lastOrNull()?.metadata?.get(MOTION_KEY) as NavKey?
 
 private enum class Kind { Tab, Push, Sheet }
 
@@ -104,26 +100,26 @@ private fun <T> sheetRise(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, 
 private fun <T> sheetDrop(): FiniteAnimationSpec<T> = spring(dampingRatio = 1f, stiffness = 420f)
 
 /** Something new on top: a tab, a pushed screen or a scanner sheet. */
-internal fun NavMotion.forward(): AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
-    when (top.kind()) {
-        Kind.Tab -> tab(direction(previousTop, top))
+internal fun forward(): AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
+    when (targetState.top.kind()) {
+        Kind.Tab -> tab(direction(initialState.top, targetState.top))
         Kind.Sheet -> sheetUp()
         Kind.Push -> push()
     }
 }
 
 /** Back: whatever was closed leaves the way it came. */
-internal fun NavMotion.back(): AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
-    when (previousTop.kind()) {
-        Kind.Tab -> tab(direction(previousTop, top))
+internal fun back(): AnimatedContentTransitionScope<Scene<NavKey>>.() -> ContentTransform = {
+    when (initialState.top.kind()) {
+        Kind.Tab -> tab(direction(initialState.top, targetState.top))
         Kind.Sheet -> sheetDown()
         Kind.Push -> pop()
     }
 }
 
 /** The back gesture, before anything has changed: the screen on top follows the finger out. */
-internal fun NavMotion.predictiveBack(): AnimatedContentTransitionScope<Scene<NavKey>>.(Int) -> ContentTransform = {
-    when (top.kind()) {
+internal fun predictiveBack(): AnimatedContentTransitionScope<Scene<NavKey>>.(Int) -> ContentTransform = {
+    when (initialState.top.kind()) {
         Kind.Tab -> tab(-1)
         Kind.Sheet -> sheetDown()
         Kind.Push -> pop()

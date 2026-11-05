@@ -4,7 +4,6 @@ package dev.southstar21.kaloria.core.designsystem.liquid
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -105,10 +107,13 @@ fun LiquidTabs(
     BoxWithConstraints(modifier, contentAlignment = Alignment.CenterStart) {
         val density = LocalDensity.current
         val itemWidth = with(density) { (constraints.maxWidth.toFloat() - 8.dp.toPx()) / count }
+        // Read inside long-lived lambdas, so a resize reaches them without rebuilding the drag.
+        val itemWidthNow by rememberUpdatedState(itemWidth)
+        val maxWidthNow by rememberUpdatedState(constraints.maxWidth.toFloat())
         val offsetAnimation = remember { Animatable(0f) }
         val panelOffset by remember(density) {
             derivedStateOf {
-                val fraction = (offsetAnimation.value / constraints.maxWidth).fastCoerceIn(-1f, 1f)
+                val fraction = (offsetAnimation.value / maxWidthNow).fastCoerceIn(-1f, 1f)
                 with(density) { 4.dp.toPx() * fraction.sign * EaseOut.transform(abs(fraction)) }
             }
         }
@@ -131,7 +136,7 @@ fun LiquidTabs(
                     scope.launch { offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f)) }
                 },
                 onDrag = { _, amount ->
-                    updateValue((targetValue + amount.x / itemWidth).fastCoerceIn(0f, (count - 1).toFloat()))
+                    updateValue((targetValue + amount.x / itemWidthNow).fastCoerceIn(0f, (count - 1).toFloat()))
                     scope.launch { offsetAnimation.snapTo(offsetAnimation.value + amount.x) }
                 },
             )
@@ -151,8 +156,8 @@ fun LiquidTabs(
             }
         }
 
-        val highlight = remember(scope) {
-            InteractiveHighlight(scope, position = { size, _ -> Offset((drag.value + 0.5f) * itemWidth + panelOffset, size.height / 2f) })
+        val highlight = remember(scope, drag) {
+            InteractiveHighlight(scope, position = { size, _ -> Offset((drag.value + 0.5f) * itemWidthNow + panelOffset, size.height / 2f) })
         }
 
         @Composable
@@ -161,7 +166,7 @@ fun LiquidTabs(
                 Column(
                     Modifier
                         .clip(Capsule())
-                        .clickable(interactionSource = null, indication = null, role = Role.Tab) { currentIndex = index }
+                        .selectable(selected = index == currentIndex, interactionSource = null, indication = null, role = Role.Tab) { currentIndex = index }
                         .fillMaxHeight()
                         .weight(1f)
                         .graphicsLayer {
@@ -179,6 +184,7 @@ fun LiquidTabs(
         items(
             tinted = false,
             rowModifier = Modifier
+                .selectableGroup()
                 .graphicsLayer { translationX = panelOffset }
                 .drawBackdrop(
                     backdrop = backdrop,
@@ -276,13 +282,25 @@ fun LiquidTabs(
 
 /**
  * Keeps sideways drags inside this element from also reaching a parent's swipe gesture (Today
- * swipes between days), while the tabs inside still see them first.
+ * swipes between days), while the tabs inside still see them first. A gesture is only taken once
+ * it has moved past the touch slop mostly sideways; vertical ones are left for a parent's scroll.
  */
 fun Modifier.consumeHorizontalDrags(): Modifier = pointerInput(Unit) {
+    val slop = viewConfiguration.touchSlop
     awaitEachGesture {
+        var travel = Offset.Zero
+        var decided = false
+        var horizontal = false
         do {
             val event = awaitPointerEvent()
-            event.changes.forEach { if (it.positionChange() != Offset.Zero) it.consume() }
+            if (!decided) {
+                event.changes.forEach { travel += it.positionChangeIgnoreConsumed() }
+                if (travel.getDistance() > slop) {
+                    decided = true
+                    horizontal = abs(travel.x) > abs(travel.y)
+                }
+            }
+            if (horizontal) event.changes.forEach { if (it.positionChange() != Offset.Zero) it.consume() }
         } while (event.changes.any { it.pressed })
     }
 }

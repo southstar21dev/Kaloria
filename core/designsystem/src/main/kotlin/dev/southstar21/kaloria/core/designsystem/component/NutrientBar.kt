@@ -6,17 +6,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -36,7 +37,7 @@ fun NutrientBar(
     val fraction = if (target != null && target > 0) (value / target).toFloat() else 0f
     val over = MaterialTheme.colorScheme.tertiary
     val fill = if (fraction > 1f) over else color
-    val animated by animateFloatAsState(
+    val animated = animateFloatAsState(
         fraction.coerceIn(0f, 1f),
         MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "bar",
@@ -57,16 +58,13 @@ fun NutrientBar(
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(CircleShape)
-                    .background(fill.copy(alpha = 0.18f)),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(animated)
-                        .fillMaxHeight()
-                        .clip(CircleShape)
-                        .background(fill),
-                )
-            }
+                    .background(fill.copy(alpha = 0.18f))
+                    // Read only while drawing, so the fill grows without relayout each frame.
+                    .drawBehind {
+                        val width = size.width * animated.value
+                        if (width > 0f) drawRoundRect(fill, size = Size(width, size.height), cornerRadius = CornerRadius(minOf(width, size.height) / 2))
+                    },
+            )
         }
     }
 }

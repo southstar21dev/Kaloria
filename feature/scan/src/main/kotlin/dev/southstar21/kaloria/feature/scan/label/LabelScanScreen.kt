@@ -49,6 +49,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +61,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -148,7 +152,7 @@ fun LabelScanRoute(
                         if (!viewModel.read { image.use { it.toUprightBitmap() } }) image.close()
                     }
 
-                    override fun onError(exception: ImageCaptureException) = Unit
+                    override fun onError(exception: ImageCaptureException) = viewModel.captureFailed()
                 },
             )
         },
@@ -229,7 +233,7 @@ private fun LabelScanScreen(
             ) {
                 // The latest flat preview, kept while its card fades out.
                 var preview by remember { mutableStateOf<Bitmap?>(null) }
-                live?.let { preview = it.flat }
+                SideEffect { live?.let { preview = it.flat } }
                 AnimatedContent(
                     targetState = when {
                         reading -> Hint.Reading
@@ -241,9 +245,11 @@ private fun LabelScanScreen(
                             .togetherWith(fadeOut(tween(140)))
                     },
                     label = "hint",
+                    // Read out as it changes, for people who can't see the frame.
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 ) { hint ->
                     if (hint == Hint.Found) {
-                        LiveFlatCard(preview)
+                        LiveFlatCard(live?.flat ?: preview)
                     } else if (hint == Hint.Reading) {
                         GlassCard(Modifier.borderBeam(cornerRadius = 28.dp, dark = true)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

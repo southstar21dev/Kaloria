@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -156,14 +158,14 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
         text.uppercase(),
         style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(start = 8.dp, top = 8.dp),
+        modifier = modifier.semantics { heading() }.padding(start = 8.dp, top = 8.dp),
     )
 }
 
 /** A big two-weight screen header: bold [title], then a light [subtitle], as in a widget launcher. */
 @Composable
 fun GreetingHeader(title: String, subtitle: String, modifier: Modifier = Modifier) {
-    Column(modifier.padding(horizontal = 8.dp)) {
+    Column(modifier.semantics(mergeDescendants = true) { heading() }.padding(horizontal = 8.dp)) {
         Text(title, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold))
         Text(
             subtitle,

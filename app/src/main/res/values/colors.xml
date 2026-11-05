@@ -3,4 +3,6 @@
     <!-- Brand colours for the launch screen, in the app's only theme (silver frost); the app itself takes them from KaloriaTheme. -->
     <color name="brand_mark">#FF1F4E79</color>
     <color name="brand_splash_background">#FFC9D2E3</color>
+    <!-- KaloriaColors.background, so the window shows the app's colour before the first frame draws. -->
+    <color name="app_background">#FFC9D2E3</color>
 </resources>

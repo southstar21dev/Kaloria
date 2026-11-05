@@ -88,10 +88,6 @@ fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit 
     }
     val current = backStack.lastOrNull()
     val topLevel = TopLevelDestination.entries.firstOrNull { it.key == current }
-    // Which screen was on top before this change decides how the change moves. Plain fields, not
-    // state, so updating them here doesn't trigger another composition.
-    val motion = remember { NavMotion() }
-    motion.update(current)
     // The dock keeps showing the last tab while it slides away.
     val lastTab = remember { mutableStateOf(TopLevelDestination.Today) }
     SideEffect { if (topLevel != null) lastTab.value = topLevel }
@@ -103,7 +99,46 @@ fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit 
     // never during composition, so swiping between days doesn't recompose the whole app shell.
     val todayDay = rememberSaveable { mutableLongStateOf(LocalDate.now(clock).toEpochDay()) }
     fun addDay() = if (backStack.lastOrNull() == TodayKey) todayDay.longValue else LocalDate.now(clock).toEpochDay()
-    val decorators = listOf(rememberSaveableStateHolderNavEntryDecorator<NavKey>(), rememberViewModelStoreNavEntryDecorator())
+    val saveableState = rememberSaveableStateHolderNavEntryDecorator<NavKey>()
+    val viewModelStore = rememberViewModelStoreNavEntryDecorator<NavKey>()
+    val decorators = remember(saveableState, viewModelStore) { listOf(saveableState, viewModelStore) }
+    val routes = entryProvider {
+        entry<TodayKey> {
+            TodayRoute(onDayChange = { todayDay.longValue = it.toEpochDay() }, onOpenSettings = { backStack.add(SettingsKey) })
+        }
+        entry<FoodSearchKey> { key ->
+            FoodSearchRoute(
+                key = key,
+                onBack = { backStack.removeLastOrNull() },
+                onCreateFood = { name -> backStack.add(FoodEditorKey(name = name.ifBlank { null })) },
+                onScanBarcode = { backStack.add(BarcodeScanKey(key.epochDay)) },
+            )
+        }
+        entry<BarcodeScanKey> { key ->
+            BarcodeScanRoute(
+                key = key,
+                onBack = { backStack.removeLastOrNull() },
+                onLogged = { backStack.removeLastOrNull() },
+                onScanLabel = { code -> backStack.replaceLast(LabelScanKey(code)) },
+                onEnterManually = { code -> backStack.replaceLast(FoodEditorKey(barcode = code)) },
+            )
+        }
+        entry<LabelScanKey> { key ->
+            LabelScanRoute(
+                key = key,
+                onBack = { backStack.removeLastOrNull() },
+                onReview = { draftId, barcode -> backStack.replaceLast(FoodEditorKey(barcode = barcode, draftId = draftId)) },
+            )
+        }
+        entry<FoodsKey> {
+            FoodsRoute(onOpenFood = { id -> backStack.add(FoodEditorKey(foodId = id)) })
+        }
+        entry<FoodEditorKey> { key ->
+            FoodEditorRoute(key = key, onDone = { backStack.removeLastOrNull() })
+        }
+        entry<SettingsKey> { SettingsRoute(onBack = { backStack.removeLastOrNull() }) }
+        entry<ProgressKey> { ProgressRoute() }
+    }
 
     GlassBackdrop {
         // Everything the screens draw is recorded so the floating dock refracts it.
@@ -113,47 +148,12 @@ fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit 
                 modifier = Modifier.layerBackdrop(screens),
                 backStack = backStack,
                 onBack = { backStack.removeLastOrNull() },
-                transitionSpec = motion.forward(),
-                popTransitionSpec = motion.back(),
-                predictivePopTransitionSpec = motion.predictiveBack(),
+                transitionSpec = forward(),
+                popTransitionSpec = back(),
+                predictivePopTransitionSpec = predictiveBack(),
                 entryDecorators = decorators,
-                entryProvider = entryProvider {
-                    entry<TodayKey> {
-                        TodayRoute(onDayChange = { todayDay.longValue = it.toEpochDay() }, onOpenSettings = { backStack.add(SettingsKey) })
-                    }
-                    entry<FoodSearchKey> { key ->
-                        FoodSearchRoute(
-                            key = key,
-                            onBack = { backStack.removeLastOrNull() },
-                            onCreateFood = { name -> backStack.add(FoodEditorKey(name = name.ifBlank { null })) },
-                            onScanBarcode = { backStack.add(BarcodeScanKey(key.epochDay)) },
-                        )
-                    }
-                    entry<BarcodeScanKey> { key ->
-                        BarcodeScanRoute(
-                            key = key,
-                            onBack = { backStack.removeLastOrNull() },
-                            onLogged = { backStack.removeLastOrNull() },
-                            onScanLabel = { code -> backStack.replaceLast(LabelScanKey(code)) },
-                            onEnterManually = { code -> backStack.replaceLast(FoodEditorKey(barcode = code)) },
-                        )
-                    }
-                    entry<LabelScanKey> { key ->
-                        LabelScanRoute(
-                            key = key,
-                            onBack = { backStack.removeLastOrNull() },
-                            onReview = { draftId, barcode -> backStack.replaceLast(FoodEditorKey(barcode = barcode, draftId = draftId)) },
-                        )
-                    }
-                    entry<FoodsKey> {
-                        FoodsRoute(onOpenFood = { id -> backStack.add(FoodEditorKey(foodId = id)) })
-                    }
-                    entry<FoodEditorKey> { key ->
-                        FoodEditorRoute(key = key, onDone = { backStack.removeLastOrNull() })
-                    }
-                    entry<SettingsKey> { SettingsRoute(onBack = { backStack.removeLastOrNull() }) }
-                    entry<ProgressKey> { ProgressRoute() }
-                },
+                // Each entry carries its key, which is how the transition specs know what's moving.
+                entryProvider = { key -> routes(key).withMotionKey(key) },
             )
         }
 

@@ -19,6 +19,7 @@
     <string name="portion_sheet_cancel">Cancel</string>
     <string name="portion_sheet_time_eaten">Time eaten</string>
     <string name="portion_sheet_amount">Amount</string>
+    <string name="portion_sheet_edit_serving">Rename or delete serving</string>
 
     <!-- ServingDialog -->
     <string name="serving_dialog_new_title">New serving</string>
@@ -29,4 +30,9 @@
     <string name="serving_dialog_save">Save</string>
     <string name="serving_dialog_delete">Delete</string>
     <string name="serving_dialog_cancel">Cancel</string>
+
+    <!-- Format -->
+    <string name="day_today">Today</string>
+    <string name="day_yesterday">Yesterday</string>
+    <string name="day_tomorrow">Tomorrow</string>
 </resources>

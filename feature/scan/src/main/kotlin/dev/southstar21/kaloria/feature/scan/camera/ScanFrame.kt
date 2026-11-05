@@ -5,10 +5,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.VectorConverter
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -55,7 +53,7 @@ internal fun ScanFrame(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 24.dp,
     locked: Boolean = false,
-    accent: Color = Color(0xFFA9C8EA),
+    accent: Color = ScanAccent,
 ) {
     val density = LocalDensity.current
     var area by remember { mutableStateOf(IntSize.Zero) }
@@ -85,17 +83,22 @@ internal fun ScanFrame(
             frame.animateTo(goal, spring(dampingRatio = if (target != null) 0.78f else 0.85f, stiffness = if (target != null) 420f else 260f))
         }
     }
-    val breathing by rememberInfiniteTransition(label = "frame").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Reverse),
-        label = "breathe",
-    )
-    val idle by animateFloatAsState(if (target == null && !locked) 1f else 0f, tween(300), label = "idle")
+    // Breathes only while resting; read in the draw phase, so it redraws without recomposing.
+    val resting = target == null && !locked
+    val breathing = remember { Animatable(0f) }
+    LaunchedEffect(resting) {
+        if (!resting) return@LaunchedEffect
+        breathing.snapTo(0f)
+        breathing.animateTo(1f, infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Reverse))
+    }
+    val idle by animateFloatAsState(if (resting) 1f else 0f, tween(300), label = "idle")
     val close by animateFloatAsState(if (locked) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = 380f), label = "lock")
     val color by animateColorAsState(if (locked || target != null) accent else Color.White, tween(220), label = "color")
     val radius = with(density) { cornerRadius.toPx() }
     val stroke = with(density) { 4.dp.toPx() }
+    val bracketPath = remember { Path() }
+    val bracketStroke = remember(stroke) { Stroke(stroke, cap = StrokeCap.Round) }
+    val outlineStroke = remember(stroke) { Stroke(stroke * 0.6f) }
 
     Canvas(
         modifier
@@ -106,22 +109,23 @@ internal fun ScanFrame(
     ) {
         var r = frame.value
         if (r == Rect.Zero) return@Canvas
-        val grow = idle * breathing * 6.dp.toPx()
+        val grow = idle * breathing.value * 6.dp.toPx()
         r = Rect(r.left - grow, r.top - grow, r.right + grow, r.bottom + grow)
         val corner = min(radius, min(r.width, r.height) / 3f)
         drawRect(Color.Black.copy(alpha = 0.42f))
         drawRoundRect(Color.Black, r.topLeft, r.size, CornerRadius(corner), blendMode = BlendMode.Clear)
         if (close > 0f) {
-            drawRoundRect(color.copy(alpha = 0.9f * close), r.topLeft, r.size, CornerRadius(corner), style = Stroke(stroke * 0.6f))
+            drawRoundRect(color.copy(alpha = 0.9f * close), r.topLeft, r.size, CornerRadius(corner), style = outlineStroke)
         }
-        brackets(r, corner, stroke, color)
+        brackets(bracketPath, r, corner, color, bracketStroke)
     }
 }
 
 /** Four L-shaped corners with rounded elbows, each a third of the shorter side long. */
-private fun DrawScope.brackets(r: Rect, corner: Float, width: Float, color: Color) {
+private fun DrawScope.brackets(path: Path, r: Rect, corner: Float, color: Color, stroke: Stroke) {
     val arm = max(corner + 8.dp.toPx(), min(r.width, r.height) * 0.28f)
-    val path = Path().apply {
+    path.rewind()
+    path.apply {
         // Top left
         moveTo(r.left, r.top + arm)
         lineTo(r.left, r.top + corner)
@@ -143,8 +147,11 @@ private fun DrawScope.brackets(r: Rect, corner: Float, width: Float, color: Colo
         quadraticTo(r.left, r.bottom, r.left, r.bottom - corner)
         lineTo(r.left, r.bottom - arm)
     }
-    drawPath(path, color, style = Stroke(width, cap = StrokeCap.Round))
+    drawPath(path, color, style = stroke)
 }
+
+/** The scan accent: the brand's light blue, fixed rather than themed since it's always drawn over the camera. */
+internal val ScanAccent = Color(0xFFA9C8EA)
 
 /** A sighting in this view's pixels: the viewport makes the analysed crop exactly what the view shows. */
 internal fun BarcodeSighting.toView(view: IntSize): Rect = Rect(left * view.width, top * view.height, right * view.width, bottom * view.height)

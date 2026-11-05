@@ -39,7 +39,7 @@ private fun MacrobenchmarkScope.fling(direction: Direction) {
     }
 }
 
-/** Every top-level screen, plus the dock's add menu: what a typical session touches. */
+/** Every top-level screen, the dock's add menu, food search and the food editor: what a typical session touches. */
 fun MacrobenchmarkScope.browseApp() {
     device.wait(Until.hasObject(By.text("Today")), 10_000)
     scrollScreen()
@@ -47,10 +47,38 @@ fun MacrobenchmarkScope.browseApp() {
         openTab(tab)
         scrollScreen()
     }
-    device.findObject(By.desc("Add food"))?.let {
-        it.click()
-        device.wait(Until.hasObject(By.text("Search foods")), 2_000)
-        device.pressBack()
+    searchAndOpenEditor()
+}
+
+/**
+ * Add menu, then search: types a query, waits for results (online sources, so possibly none), then
+ * opens the editor from "Create" (works offline too) and backs out to Today.
+ */
+private fun MacrobenchmarkScope.searchAndOpenEditor() {
+    val add = device.findObject(By.desc("Add food")) ?: return
+    add.click()
+    if (!device.wait(Until.hasObject(By.text("Search foods")), 2_000)) return
+    device.findObject(By.text("Search foods"))?.click()
+    device.wait(Until.findObject(By.clazz("android.widget.EditText")), 5_000)?.let { field ->
+        field.text = "apple"
+        device.wait(Until.hasObject(By.textStartsWith("Create")), 5_000)
+        device.waitForIdle()
+        scrollScreen()
+        device.findObject(By.textStartsWith("Create"))?.let {
+            it.click()
+            device.wait(Until.hasObject(By.text("New food")), 5_000)
+            device.waitForIdle()
+            scrollScreen()
+        }
+    }
+    backToToday()
+}
+
+/** Backs out of whatever is open (keyboard, editor, its discard prompt, search) until the dock shows. */
+private fun MacrobenchmarkScope.backToToday() {
+    repeat(5) {
+        if (device.hasObject(By.desc("Add food"))) return
+        device.findObject(By.text("Discard"))?.click() ?: device.pressBack()
         device.waitForIdle()
     }
 }

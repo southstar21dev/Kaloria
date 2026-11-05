@@ -40,6 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -65,9 +67,8 @@ internal fun AccountCard(
 ) {
     val context = LocalContext.current
     // Android 17 blocks connections to private addresses unless the user allows local network access.
-    val localNetworkDenied = stringResource(R.string.settings_account_local_network_denied)
     val localNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) onSignIn() else onEdit { copy(error = localNetworkDenied) }
+        if (granted) onSignIn() else onEdit { copy(errorRes = R.string.settings_account_local_network_denied) }
     }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     val canSignIn = !form.busy && form.email.isNotBlank() && form.password.isNotEmpty() && form.serverUrl.isNotBlank()
@@ -121,13 +122,18 @@ internal fun AccountCard(
                     keyboardActions = KeyboardActions(onDone = { if (canSignIn) signIn() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                form.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                (form.error ?: form.errorRes?.let { stringResource(it) })?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                 Button(
                     onClick = signIn,
                     enabled = canSignIn,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    if (form.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.settings_account_sign_in))
+                    if (form.busy) {
+                        val signingIn = stringResource(R.string.settings_account_signing_in)
+                        CircularProgressIndicator(Modifier.size(18.dp).semantics { contentDescription = signingIn }, strokeWidth = 2.dp)
+                    } else {
+                        Text(stringResource(R.string.settings_account_sign_in))
+                    }
                 }
                 Text(
                     stringResource(R.string.settings_account_no_sign_up),
@@ -172,7 +178,12 @@ internal fun AccountCard(
                     }
                     Spacer(Modifier.width(8.dp))
                     FilledTonalButton(onClick = onSyncNow, enabled = !syncing) {
-                        if (syncing) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Text(stringResource(R.string.settings_account_sync_now))
+                        if (syncing) {
+                            val syncingNow = stringResource(R.string.settings_account_syncing)
+                            CircularProgressIndicator(Modifier.size(16.dp).semantics { contentDescription = syncingNow }, strokeWidth = 2.dp)
+                        } else {
+                            Text(stringResource(R.string.settings_account_sync_now))
+                        }
                     }
                 }
                 HorizontalDivider(Modifier.padding(top = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))

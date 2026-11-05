@@ -26,6 +26,11 @@
     <string name="progress_delete">Delete</string>
     <string name="progress_cancel">Cancel</string>
     <string name="progress_save">Save</string>
+    <string name="progress_grams_unit">g</string>
+    <plurals name="progress_range_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
 
     <!-- Streak tile -->
     <plurals name="progress_streak_unit">
@@ -55,4 +60,7 @@
     <string name="progress_health_connect">Connect</string>
     <string name="progress_weight_dialog_title">Log weight</string>
     <string name="progress_weight_field">Weight</string>
+    <string name="progress_weight_unit">" kg"</string>
+    <string name="progress_kg">kg</string>
+    <string name="progress_health_syncing">Syncing with Samsung Health</string>
 </resources>

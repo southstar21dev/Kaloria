@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -42,13 +43,15 @@ fun Modifier.borderBeam(
     dark: Boolean = isDarkScheme(),
     strength: Float = 1f,
 ): Modifier {
-    val fade by animateFloatAsState(
+    val fadeState = animateFloatAsState(
         targetValue = if (active) 1f else 0f,
         animationSpec = tween(if (active) FadeInMs else FadeOutMs, easing = FastOutSlowInEasing),
         label = "beam",
     )
     val time = remember { mutableFloatStateOf(0f) }
-    if (fade > 0f) {
+    // Recomposes only when the beam turns on or off, not on each frame of the fade.
+    val running by remember { derivedStateOf { fadeState.value > 0f } }
+    if (running) {
         LaunchedEffect(Unit) {
             val start = withFrameNanos { it }
             while (true) withFrameNanos { time.floatValue = (it - start) / 1_000_000_000f }
@@ -117,15 +120,18 @@ fun Modifier.borderBeam(
         val innerBrush = ShaderBrush(inner)
         val strokeBrush = ShaderBrush(stroke)
         val bloomBrush = ShaderBrush(bloom)
+        // Reused every frame rather than allocated.
+        val matrix = FloatArray(9)
+        val scratch = FloatArray(18)
         onDrawWithContent {
             drawContent()
-            val f = fade
+            val f = fadeState.value
             if (f <= 0.001f) return@onDrawWithContent
             val t = time.floatValue
             val angle = (t / DurationSeconds) % 1f
             // The colours sway ±30° of hue over 12 s, as on the web.
             val hue = -HueRange + 2 * HueRange * pingPong(t / HueShiftPeriod)
-            val matrix = filterMatrix(hue, Brightness, tuning.saturation)
+            filterMatrix(hue, Brightness, tuning.saturation, matrix, scratch)
             val s = f * strength
             inner.setFloatUniform("uAngle", angle)
             inner.setFloatUniform("uCM", matrix)
@@ -243,28 +249,46 @@ private class Tuning(
 /** Cosine ease-in-out in [0, 1]: 0 at phase 0 and 1, 1 at phase 0.5. */
 private fun pingPong(phase: Float) = (1 - cos(2 * PI.toFloat() * phase)) / 2
 
-/** CSS `hue-rotate(hue) brightness(b) saturate(s)` as one 3x3 matrix (W3C feColorMatrix math). */
-internal fun filterMatrix(hueDegrees: Float, brightness: Float, saturation: Float): FloatArray {
+/**
+ * CSS `hue-rotate(hue) brightness(b) saturate(s)` as one 3x3 matrix (W3C feColorMatrix math),
+ * written into [out]. [scratch] holds the two factor matrices (18 floats), so callers drawing
+ * every frame can pass arrays they keep.
+ */
+internal fun filterMatrix(
+    hueDegrees: Float,
+    brightness: Float,
+    saturation: Float,
+    out: FloatArray = FloatArray(9),
+    scratch: FloatArray = FloatArray(18),
+): FloatArray {
     val rad = hueDegrees * PI.toFloat() / 180f
     val c = cos(rad)
     val s = sin(rad)
     val b = brightness
-    val hue = floatArrayOf(
-        (0.213f + c * 0.787f - s * 0.213f) * b, (0.715f - c * 0.715f - s * 0.715f) * b, (0.072f - c * 0.072f + s * 0.928f) * b,
-        (0.213f - c * 0.213f + s * 0.143f) * b, (0.715f + c * 0.285f + s * 0.140f) * b, (0.072f - c * 0.072f - s * 0.283f) * b,
-        (0.213f - c * 0.213f - s * 0.787f) * b, (0.715f - c * 0.715f + s * 0.715f) * b, (0.072f + c * 0.928f + s * 0.072f) * b,
-    )
+    // Hue rotation (with brightness) in scratch[0..8], saturation in scratch[9..17].
+    scratch[0] = (0.213f + c * 0.787f - s * 0.213f) * b
+    scratch[1] = (0.715f - c * 0.715f - s * 0.715f) * b
+    scratch[2] = (0.072f - c * 0.072f + s * 0.928f) * b
+    scratch[3] = (0.213f - c * 0.213f + s * 0.143f) * b
+    scratch[4] = (0.715f + c * 0.285f + s * 0.140f) * b
+    scratch[5] = (0.072f - c * 0.072f - s * 0.283f) * b
+    scratch[6] = (0.213f - c * 0.213f - s * 0.787f) * b
+    scratch[7] = (0.715f - c * 0.715f + s * 0.715f) * b
+    scratch[8] = (0.072f + c * 0.928f + s * 0.072f) * b
     val k = saturation
-    val sat = floatArrayOf(
-        0.213f + 0.787f * k, 0.715f - 0.715f * k, 0.072f - 0.072f * k,
-        0.213f - 0.213f * k, 0.715f + 0.285f * k, 0.072f - 0.072f * k,
-        0.213f - 0.213f * k, 0.715f - 0.715f * k, 0.072f + 0.928f * k,
-    )
-    val out = FloatArray(9)
+    scratch[9] = 0.213f + 0.787f * k
+    scratch[10] = 0.715f - 0.715f * k
+    scratch[11] = 0.072f - 0.072f * k
+    scratch[12] = 0.213f - 0.213f * k
+    scratch[13] = 0.715f + 0.285f * k
+    scratch[14] = 0.072f - 0.072f * k
+    scratch[15] = 0.213f - 0.213f * k
+    scratch[16] = 0.715f - 0.715f * k
+    scratch[17] = 0.072f + 0.928f * k
     for (row in 0 until 3) {
         for (col in 0 until 3) {
             var sum = 0f
-            for (i in 0 until 3) sum += sat[row * 3 + i] * hue[i * 3 + col]
+            for (i in 0 until 3) sum += scratch[9 + row * 3 + i] * scratch[i * 3 + col]
             out[row * 3 + col] = sum
         }
     }

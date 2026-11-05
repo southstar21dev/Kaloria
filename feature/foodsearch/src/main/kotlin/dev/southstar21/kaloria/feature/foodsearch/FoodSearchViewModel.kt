@@ -4,8 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.SavedStateHandleSaveableApi
+import androidx.lifecycle.viewmodel.compose.saveable
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -22,6 +25,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -54,10 +58,11 @@ sealed interface Pickable {
     }
 }
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, SavedStateHandleSaveableApi::class)
 @HiltViewModel(assistedFactory = FoodSearchViewModel.Factory::class)
 class FoodSearchViewModel @AssistedInject constructor(
     @Assisted private val key: FoodSearchKey,
+    savedState: SavedStateHandle,
     private val foods: FoodRepository,
     private val catalog: FoodCatalog,
     private val diary: DiaryRepository,
@@ -71,7 +76,8 @@ class FoodSearchViewModel @AssistedInject constructor(
 
     val day: LocalDate = LocalDate.ofEpochDay(key.epochDay)
 
-    var query by mutableStateOf("")
+    // Saved so a restored portion sheet (its pick is saved by the screen) finds the same results again.
+    var query by savedState.saveable { mutableStateOf("") }
 
     private val trimmedQuery = snapshotFlow { query.trim() }.distinctUntilChanged()
 
@@ -103,13 +109,19 @@ class FoodSearchViewModel @AssistedInject constructor(
 
     fun saveServings(foodId: String, servings: List<dev.southstar21.kaloria.core.model.Serving>) = viewModelScope.launch { foods.saveServings(foodId, servings) }
 
-    fun log(pick: Pickable, amount: Double, time: LocalTime) = viewModelScope.launch {
-        val food = when (pick) {
-            is Pickable.Own -> pick.food
-            is Pickable.Online -> catalog.import(pick.food)
+    private var logging: Job? = null
+
+    /** Ignored while a log is still being written, so a double tap logs once. */
+    fun log(pick: Pickable, amount: Double, time: LocalTime) {
+        if (logging?.isActive == true) return
+        logging = viewModelScope.launch {
+            val food = when (pick) {
+                is Pickable.Own -> pick.food
+                is Pickable.Online -> catalog.import(pick.food)
+            }
+            diary.logFood(food, amount, day.atTime(time).atZone(clock.zone).toInstant())
+            loggedChannel.send(food.name)
         }
-        diary.logFood(food, amount, day.atTime(time).atZone(clock.zone).toInstant())
-        loggedChannel.send(food.name)
     }
 
     private companion object {

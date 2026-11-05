@@ -2,6 +2,7 @@ package dev.southstar21.kaloria.feature.foodsearch
 
 import android.content.Context
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import dev.southstar21.kaloria.core.data.repository.DiaryRepository
 import dev.southstar21.kaloria.core.data.repository.FoodCatalog
@@ -72,7 +73,7 @@ class FoodSearchViewModelTest {
 
     @After fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel(day: LocalDate = today) = FoodSearchViewModel(FoodSearchKey(day.toEpochDay()), foods, catalog, diary, clock)
+    private fun viewModel(day: LocalDate = today) = FoodSearchViewModel(FoodSearchKey(day.toEpochDay()), SavedStateHandle(), foods, catalog, diary, clock)
 
     private fun FoodSearchViewModel.type(text: String) {
         query = text
@@ -171,6 +172,7 @@ class FoodSearchViewModelTest {
         )
 
         vm.log(Pickable.Online(remote), amount = 40.0, time = LocalTime.NOON)
+        runCurrent()
         vm.log(Pickable.Online(remote), amount = 20.0, time = LocalTime.NOON)
         runCurrent()
 
@@ -179,6 +181,18 @@ class FoodSearchViewModelTest {
         assertEquals("Trappista", imported.single().name)
         assertEquals(listOf(Serving("slice", 20.0)), imported.single().servings)
         assertEquals(listOf(imported.single().id, imported.single().id), diary.entries.value.map { it.foodId })
+    }
+
+    @Test
+    fun `a second log while one is still being written is ignored`() = runTest {
+        val vm = viewModel()
+        val oats = foods.get("oats")!!
+
+        vm.log(Pickable.Own(oats), amount = 60.0, time = LocalTime.NOON)
+        vm.log(Pickable.Own(oats), amount = 60.0, time = LocalTime.NOON)
+        runCurrent()
+
+        assertEquals(1, diary.entries.value.size)
     }
 
     @Test

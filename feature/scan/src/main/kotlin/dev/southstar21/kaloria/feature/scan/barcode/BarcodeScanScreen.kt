@@ -5,6 +5,7 @@ import androidx.camera.core.Camera
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
+import androidx.camera.core.TorchState
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,6 +42,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -47,11 +50,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
@@ -61,11 +66,17 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Observer
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.southstar21.kaloria.core.data.repository.BarcodeResult
 import dev.southstar21.kaloria.core.designsystem.component.GlassCard
 import dev.southstar21.kaloria.core.designsystem.component.GlassOverCamera
@@ -76,12 +87,14 @@ import dev.southstar21.kaloria.core.scanner.BarcodeAnalyzer
 import dev.southstar21.kaloria.core.scanner.BarcodeSighting
 import dev.southstar21.kaloria.core.ui.PortionSheet
 import dev.southstar21.kaloria.feature.scan.BarcodeScanKey
+import dev.southstar21.kaloria.feature.scan.R
 import dev.southstar21.kaloria.feature.scan.camera.CameraPreview
 import dev.southstar21.kaloria.feature.scan.camera.ScanFrame
 import dev.southstar21.kaloria.feature.scan.camera.toView
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun BarcodeScanRoute(
@@ -113,7 +126,16 @@ fun BarcodeScanRoute(
                     .build(),
             )
             .build()
-            .apply { setAnalyzer(executor, analyzer) }
+    }
+    // ML Kit reads frames only while looking for a code, not while it's looked up or being logged.
+    val scanning = viewModel.state == BarcodeState.Scanning
+    LaunchedEffect(scanning) {
+        if (scanning) {
+            sighting = null
+            analysis.setAnalyzer(executor, analyzer)
+        } else {
+            analysis.clearAnalyzer()
+        }
     }
     DisposableEffect(Unit) {
         onDispose {
@@ -125,7 +147,9 @@ fun BarcodeScanRoute(
 
     BarcodeScanScreen(
         state = viewModel.state,
-        sighting = sighting,
+        // Read lazily: it changes every frame, and only the frame's tracking needs it.
+        sighting = { sighting },
+        logging = viewModel.logging,
         analysis = analysis,
         onCamera = { cam ->
             camera = cam
@@ -153,7 +177,7 @@ fun BarcodeScanRoute(
 @Composable
 internal fun BarcodeScanScreen(
     state: BarcodeState,
-    sighting: BarcodeSighting?,
+    sighting: () -> BarcodeSighting?,
     analysis: ImageAnalysis,
     onCamera: (Camera) -> Unit,
     onBack: () -> Unit,
@@ -163,12 +187,23 @@ internal fun BarcodeScanScreen(
     onScanLabel: (String) -> Unit,
     onEnterManually: (String) -> Unit,
     onSaveServings: (foodId: String, List<dev.southstar21.kaloria.core.model.Serving>) -> Unit = { _, _ -> },
+    logging: Boolean = false,
 ) {
     var camera by remember { mutableStateOf<Camera?>(null) }
     val haptics = LocalHapticFeedback.current
     // A buzz the moment a barcode is recognised.
     LaunchedEffect(state is BarcodeState.LookingUp) { if (state is BarcodeState.LookingUp) haptics.performHapticFeedback(HapticFeedbackType.Confirm) }
+    // The torch as the camera reports it, so the button can't drift from it (another app, or the
+    // camera closing, can turn it off).
+    val lifecycleOwner = LocalLifecycleOwner.current
     var torch by remember { mutableStateOf(false) }
+    DisposableEffect(camera, lifecycleOwner) {
+        val torchState = camera?.cameraInfo?.torchState
+        val observer = Observer<Int> { torch = it == TorchState.ON }
+        torchState?.observe(lifecycleOwner, observer)
+        onDispose { torchState?.removeObserver(observer) }
+    }
+    val hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
     var view by remember { mutableStateOf(IntSize.Zero) }
 
     // The frame follows the code while scanning, holds on it once read, and lets go a moment after
@@ -178,33 +213,35 @@ internal fun BarcodeScanScreen(
     val scanning = state == BarcodeState.Scanning
     var target by remember { mutableStateOf<Rect?>(null) }
     var streak by remember { mutableIntStateOf(0) }
-    LaunchedEffect(sighting, scanning, view) {
-        val seen = sighting?.takeIf { view != IntSize.Zero }?.toView(view)
-        if (!scanning) {
-            // Read on its very first sighting: lock straight onto it.
-            if (target == null) target = seen
-            return@LaunchedEffect
-        }
-        if (seen != null) {
-            streak++
-            if (streak >= 2) target = target?.let { lerp(it, seen, 0.5f) } ?: seen
-        } else {
-            streak = 0
-            delay(450)
-            target = null
-        }
-    }
     LaunchedEffect(scanning) {
         if (scanning) {
             target = null
             streak = 0
         }
+        // Collected here rather than read in composition, so a new sighting each frame moves the
+        // frame without recomposing the whole screen.
+        snapshotFlow { sighting()?.takeIf { view != IntSize.Zero }?.toView(view) }.collectLatest { seen ->
+            if (!scanning) {
+                // Read on its very first sighting: lock straight onto it.
+                if (target == null) target = seen
+                return@collectLatest
+            }
+            if (seen != null) {
+                streak++
+                if (streak >= 2) target = target?.let { lerp(it, seen, 0.5f) } ?: seen
+            } else {
+                streak = 0
+                delay(450)
+                target = null
+            }
+        }
     }
     // Continuous autofocus favours whatever fills the view, often the background. While nothing has
     // been read for a few seconds, refocus on the middle, where the code is held.
-    LaunchedEffect(camera, scanning, sighting == null) {
+    val unseen by remember(sighting) { derivedStateOf { sighting() == null } }
+    LaunchedEffect(camera, scanning, unseen) {
         val cam = camera ?: return@LaunchedEffect
-        while (scanning && sighting == null) {
+        while (scanning && unseen) {
             delay(3_000)
             val centre = SurfaceOrientedMeteringPointFactory(1f, 1f).createPoint(0.5f, 0.5f)
             cam.cameraControl.startFocusAndMetering(
@@ -253,28 +290,34 @@ internal fun BarcodeScanScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(onClick = onBack, modifier = Modifier.size(48.dp).glass(CircleShape)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                IconButton(onClick = onBack, modifier = Modifier.size(48.dp).glass(CircleShape)) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.barcode_scan_back))
+                }
                 Text(
-                    "Scan barcode",
+                    stringResource(R.string.barcode_scan_title),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.glass(CircleShape).padding(horizontal = 18.dp, vertical = 12.dp),
                 )
-                IconButton(
-                    onClick = {
-                        torch = !torch
-                        camera?.cameraControl?.enableTorch(torch)
-                    },
-                    modifier = Modifier.size(48.dp).glass(CircleShape, tint = if (torch) Color.White else Color.Unspecified),
-                ) {
-                    Icon(
-                        if (torch) Icons.Rounded.FlashlightOff else Icons.Rounded.FlashlightOn,
-                        if (torch) "Torch off" else "Torch on",
-                        tint = if (torch) Color.Black else LocalContentColor.current,
-                    )
+                if (hasFlash) {
+                    IconToggleButton(
+                        checked = torch,
+                        onCheckedChange = { camera?.cameraControl?.enableTorch(it) },
+                        modifier = Modifier.size(48.dp).glass(CircleShape, tint = if (torch) Color.White else Color.Unspecified),
+                    ) {
+                        Icon(
+                            if (torch) Icons.Rounded.FlashlightOff else Icons.Rounded.FlashlightOn,
+                            stringResource(R.string.barcode_scan_torch),
+                            tint = if (torch) Color.Black else LocalContentColor.current,
+                        )
+                    }
+                } else {
+                    // Keeps the title centred.
+                    Spacer(Modifier.size(48.dp))
                 }
             }
 
-            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp)) {
+            // Read out as it changes, for people who can't see the frame.
+            Box(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(16.dp).semantics { liveRegion = LiveRegionMode.Polite }) {
                 AnimatedContent(
                     targetState = state.cardKey(),
                     transitionSpec = {
@@ -286,9 +329,9 @@ internal fun BarcodeScanScreen(
                 ) { key ->
                     when (key) {
                         CardKey.Scanning -> GlassCard(Modifier.fillMaxWidth()) {
-                            Text("Point at a barcode", style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.barcode_scan_point), style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Hold it steady inside the frame. Your own foods are checked first, then Open Food Facts.",
+                                stringResource(R.string.barcode_scan_point_body),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -298,8 +341,8 @@ internal fun BarcodeScanScreen(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 ThinkingOrb(OrbState.Searching, size = 40.dp, dark = true)
                                 Column {
-                                    Text("Looking it up…", style = MaterialTheme.typography.titleMedium)
-                                    Text("Your foods, then Open Food Facts", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(stringResource(R.string.barcode_scan_looking_up), style = MaterialTheme.typography.titleMedium)
+                                    Text(stringResource(R.string.barcode_scan_looking_up_body), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -336,10 +379,12 @@ internal fun BarcodeScanScreen(
             servings = f.servings,
             initialAmount = null,
             initialTime = defaultTime(),
-            confirmLabel = "Log",
+            confirmLabel = stringResource(R.string.barcode_scan_log),
             onConfirm = { amount, time ->
-                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                onLog(amount, time)
+                if (!logging) {
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onLog(amount, time)
+                }
             },
             onDismiss = onRescan,
             // Only the user's own foods keep servings; Open Food Facts ones get them once logged and saved.
@@ -378,25 +423,25 @@ private fun NotFoundCard(code: String, problem: CardKey, onScanLabel: () -> Unit
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 when (problem) {
-                    CardKey.Offline -> "You're offline"
-                    CardKey.Unavailable -> "Open Food Facts didn't answer"
-                    else -> "$code isn't in any database yet"
+                    CardKey.Offline -> stringResource(R.string.barcode_scan_offline_title)
+                    CardKey.Unavailable -> stringResource(R.string.barcode_scan_unavailable_title)
+                    else -> stringResource(R.string.barcode_scan_not_found_title, code)
                 },
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
                 when (problem) {
-                    CardKey.Offline -> "Scan the label to add it to your own foods now, or try again once you're connected."
-                    CardKey.Unavailable -> "It may be busy for a moment. Try again, or scan the label to add it yourself."
-                    else -> "Scan its nutrition label once and it's yours from then on."
+                    CardKey.Offline -> stringResource(R.string.barcode_scan_offline_body)
+                    CardKey.Unavailable -> stringResource(R.string.barcode_scan_unavailable_body)
+                    else -> stringResource(R.string.barcode_scan_not_found_body)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(onClick = onScanLabel, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Scan nutrition label") }
+            Button(onClick = onScanLabel, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(stringResource(R.string.barcode_scan_scan_label)) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onEnterManually, modifier = Modifier.weight(1f)) { Text("Enter manually") }
-                OutlinedButton(onClick = onRescan, modifier = Modifier.weight(1f)) { Text(if (problem == CardKey.NotFound) "Scan again" else "Try again") }
+                OutlinedButton(onClick = onEnterManually, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.barcode_scan_enter_manually)) }
+                OutlinedButton(onClick = onRescan, modifier = Modifier.weight(1f)) { Text(stringResource(if (problem == CardKey.NotFound) R.string.barcode_scan_scan_again else R.string.barcode_scan_try_again)) }
             }
         }
     }

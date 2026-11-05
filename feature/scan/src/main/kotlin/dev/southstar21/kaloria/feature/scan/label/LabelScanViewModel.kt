@@ -117,6 +117,11 @@ class LabelScanViewModel @AssistedInject constructor(
         return true
     }
 
+    /** The camera couldn't take the photo; said so rather than leaving the shutter doing nothing. */
+    fun captureFailed() {
+        if (state != LabelScanState.Reading) state = LabelScanState.Failed(context.getString(R.string.label_scan_capture_failed))
+    }
+
     fun dismissError() {
         state = LabelScanState.Ready
     }

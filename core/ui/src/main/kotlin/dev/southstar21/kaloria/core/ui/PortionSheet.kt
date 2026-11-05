@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -40,6 +42,7 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -47,6 +50,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,6 +60,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -68,6 +75,7 @@ import dev.southstar21.kaloria.core.model.Nutrients
 import dev.southstar21.kaloria.core.model.PortionUnit
 import dev.southstar21.kaloria.core.model.Serving
 import java.time.LocalTime
+import kotlinx.coroutines.launch
 
 /**
  * Bottom sheet for choosing how much of a food was eaten and when. Used both to log a new entry
@@ -108,6 +116,18 @@ fun PortionSheet(
     val amount = if (typed != null && units.current.format(exact) == amountText) exact else typed?.let(units.current::toBase)
     val portion = amount?.let(per100::scaledTo)
     val valid = amount != null && amount > 0
+    val scope = rememberCoroutineScope()
+    // Set once a button starts closing the sheet, so a second tap while it slides away does nothing.
+    var closing by remember { mutableStateOf(false) }
+
+    // Slides the sheet away before [action] lets the caller remove it, rather than it vanishing.
+    fun closeThen(action: () -> Unit) {
+        if (closing) return
+        closing = true
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) action() else closing = false
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -151,7 +171,7 @@ fun PortionSheet(
                     Text(time.timeText(), style = MaterialTheme.typography.labelLarge)
                 }
                 if (onDelete != null) {
-                    IconButton(onClick = onDelete, modifier = Modifier.size(40.dp).frostedGlass(CircleShape)) {
+                    IconButton(onClick = { closeThen(onDelete) }, modifier = Modifier.size(40.dp).frostedGlass(CircleShape)) {
                         Icon(Icons.Rounded.DeleteOutline, stringResource(R.string.portion_sheet_delete_entry), Modifier.size(20.dp))
                     }
                 }
@@ -174,11 +194,13 @@ fun PortionSheet(
                 shown.forEachIndexed { index, serving ->
                     Pill(
                         selected = amount != null && kotlin.math.abs(amount - serving.amount) < 0.01,
+                        selectable = true,
                         onClick = {
                             exact = serving.amount
                             amountText = units.current.format(serving.amount)
                         },
                         onLongClick = onServingsChange?.let { { editing = ServingEdit(index, serving.name, units.current.format(serving.amount)) } },
+                        onLongClickLabel = stringResource(R.string.portion_sheet_edit_serving),
                     ) {
                         Text(stringResource(R.string.portion_sheet_serving_pill, serving.name, units.current.format(serving.amount), units.current.symbol), style = MaterialTheme.typography.labelLarge)
                     }
@@ -203,7 +225,7 @@ fun PortionSheet(
             }
 
             Button(
-                onClick = { amount?.let { onConfirm(it, time) } },
+                onClick = { amount?.let { confirmed -> closeThen { onConfirm(confirmed, time) } } },
                 enabled = valid,
                 shape = CircleShape,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -275,18 +297,24 @@ private fun AmountTile(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.portion_sheet_amount), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 options.forEach { option ->
                     val selected = option == current
-                    val background by animateColorAsState(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent, label = "unit")
+                    val background by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        MaterialTheme.motionScheme.defaultEffectsSpec(),
+                        label = "unit",
+                    )
                     Text(
                         option.symbol,
                         style = MaterialTheme.typography.labelLarge,
                         color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
+                            // A full-size touch target around the small chip.
+                            .minimumInteractiveComponentSize()
                             .clip(CircleShape)
                             .background(background)
-                            .clickable { onUnit(option) }
+                            .selectable(selected = selected, role = Role.RadioButton) { onUnit(option) }
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     )
                 }
@@ -312,15 +340,18 @@ private fun AmountTile(
 
 /**
  * A small white pill: servings, the time, "+ Serving". [selected] fills it with ink; [outlined] is
- * the quieter look for adding something.
+ * the quieter look for adding something. [selectable] pills also tell accessibility services
+ * whether they're selected.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Pill(
     onClick: () -> Unit,
     selected: Boolean = false,
+    selectable: Boolean = false,
     outlined: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
     val background by animateColorAsState(
@@ -329,16 +360,19 @@ private fun Pill(
             outlined -> Color.Transparent
             else -> Color.White.copy(alpha = 0.85f)
         },
+        MaterialTheme.motionScheme.defaultEffectsSpec(),
         label = "pill",
     )
     val contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     CompositionLocalProvider(LocalContentColor provides contentColor) {
         Row(
             Modifier
+                .minimumInteractiveComponentSize()
+                .then(if (selectable) Modifier.semantics { this.selected = selected } else Modifier)
                 .clip(CircleShape)
                 .background(background)
                 .then(if (outlined) Modifier.border(1.dp, Color.White, CircleShape) else Modifier)
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = onLongClickLabel.takeIf { onLongClick != null })
                 .padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = content,

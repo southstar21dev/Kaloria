@@ -12,12 +12,15 @@ import dev.southstar21.kaloria.core.ui.toInputText
 import java.time.Instant
 import kotlin.math.abs
 import kotlin.math.max
+import kotlinx.serialization.Serializable
 
 enum class EnergyUnit { Kcal, Kj }
 
+@Serializable
 data class ServingInput(val name: String = "", val amount: String = "")
 
 /** Raw text of every field in the food editor, exactly as typed. */
+@Serializable
 data class FoodForm(
     val name: String = "",
     val brand: String = "",

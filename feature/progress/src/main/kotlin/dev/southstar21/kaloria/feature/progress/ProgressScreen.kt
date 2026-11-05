@@ -27,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,9 +46,9 @@ import dev.southstar21.kaloria.core.designsystem.component.rememberIntro
 import dev.southstar21.kaloria.core.designsystem.liquid.LiquidTabs
 import dev.southstar21.kaloria.core.model.HealthAccess
 import dev.southstar21.kaloria.core.model.Micronutrient
+import dev.southstar21.kaloria.core.ui.LocalClock
 import dev.southstar21.kaloria.core.ui.gramsText
 import dev.southstar21.kaloria.core.ui.kcalText
-import java.time.ZoneId
 
 @Composable
 fun ProgressRoute(viewModel: ProgressViewModel = hiltViewModel()) {
@@ -87,7 +88,10 @@ internal fun ProgressScreen(
     val intro = rememberIntro()
     // Up to 90 formatted dates: worked out once per range, not on every recomposition.
     val days = state?.summary?.days
-    val labels = remember(days) { days?.let(::axisLabels).orEmpty() }
+    val formats = rememberProgressFormats()
+    val labels = remember(days, formats) { days?.let { axisLabels(it, formats) }.orEmpty() }
+    val zone = LocalClock.current.zone
+    val grams = stringResource(R.string.progress_grams_unit)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().glassSource(),
@@ -119,7 +123,7 @@ internal fun ProgressScreen(
                 floating = false,
             ) { index, tinted ->
                 Text(
-                    ProgressRange.entries[index].label,
+                    ProgressRange.entries[index].label(),
                     style = MaterialTheme.typography.labelLarge,
                     color = if (tinted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 )
@@ -195,10 +199,10 @@ internal fun ProgressScreen(
             ContentCard(Modifier.introItem(intro, 4).fillMaxWidth()) {
                 Text(stringResource(R.string.progress_averages_title), style = MaterialTheme.typography.titleSmall)
                 Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    NutrientBar(stringResource(R.string.progress_protein), s.average.protein ?: 0.0, state.goals.protein, "g")
-                    NutrientBar(stringResource(R.string.progress_carbs), s.average.carbohydrates ?: 0.0, state.goals.carbohydrates, "g")
-                    NutrientBar(stringResource(R.string.progress_fat), s.average.fat ?: 0.0, state.goals.fat, "g")
-                    NutrientBar(stringResource(R.string.progress_fiber), s.average.fiber ?: 0.0, state.goals.fiber, "g")
+                    NutrientBar(stringResource(R.string.progress_protein), s.average.protein ?: 0.0, state.goals.protein, grams)
+                    NutrientBar(stringResource(R.string.progress_carbs), s.average.carbohydrates ?: 0.0, state.goals.carbohydrates, grams)
+                    NutrientBar(stringResource(R.string.progress_fat), s.average.fat ?: 0.0, state.goals.fat, grams)
+                    NutrientBar(stringResource(R.string.progress_fiber), s.average.fiber ?: 0.0, state.goals.fiber, grams)
                 }
                 val rows = buildList {
                     s.average.sugars?.let { add(stringResource(R.string.progress_sugars) to it.gramsText()) }
@@ -241,13 +245,13 @@ internal fun ProgressScreen(
                         stringResource(
                             R.string.progress_delete_weight_from_health,
                             weight.kilograms,
-                            weight.loggedAt.atZone(ZoneId.systemDefault()).toLocalDate().format(ShortDate),
+                            weight.loggedAt.atZone(zone).toLocalDate().format(formats.shortDate),
                         )
                     } else {
                         stringResource(
                             R.string.progress_delete_weight_local,
                             weight.kilograms,
-                            weight.loggedAt.atZone(ZoneId.systemDefault()).toLocalDate().format(ShortDate),
+                            weight.loggedAt.atZone(zone).toLocalDate().format(formats.shortDate),
                         )
                     },
                 )
@@ -262,3 +266,7 @@ internal fun ProgressScreen(
         )
     }
 }
+
+/** "7 days", "30 days", "90 days". */
+@Composable
+internal fun ProgressRange.label() = pluralStringResource(R.plurals.progress_range_days, days.toInt(), days.toInt())

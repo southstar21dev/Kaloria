@@ -1,6 +1,7 @@
 package dev.southstar21.kaloria.feature.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -34,7 +36,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -100,10 +107,13 @@ internal fun SettingsScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 12.dp, bottom = dock + 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        item {
+        item(key = "header") {
             Column(Modifier.padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                IconButton(onClick = onBack, modifier = Modifier.size(44.dp).glass(CircleShape, GlassStyle.Card)) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.settings_back), Modifier.size(20.dp))
+                // A 48dp touch target around the 44dp glass button.
+                IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                    Box(Modifier.size(44.dp).glass(CircleShape, GlassStyle.Card), contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.settings_back), Modifier.size(20.dp))
+                    }
                 }
                 GreetingHeader(stringResource(R.string.settings_title), stringResource(R.string.settings_subtitle))
             }
@@ -111,16 +121,18 @@ internal fun SettingsScreen(
         item(key = "account") { Box(Modifier.introItem(intro, 0)) { account() } }
         item(key = "goals-header") { SectionHeader(stringResource(R.string.settings_goals_header)) }
         item(key = "goals") {
+            val kcal = stringResource(R.string.settings_unit_kcal)
+            val grams = stringResource(R.string.settings_unit_grams)
             // Tiles you type straight into: tap a number to change it, leave it empty for no target.
             Column(Modifier.introItem(intro, 1), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                GoalTile(stringResource(R.string.settings_goal_energy), f.energyKcal, { v -> onEditGoals { copy(energyKcal = v) } }, "kcal", Modifier.fillMaxWidth(), large = true)
+                GoalTile(stringResource(R.string.settings_goal_energy), f.energyKcal, { v -> onEditGoals { copy(energyKcal = v) } }, kcal, Modifier.fillMaxWidth(), large = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GoalTile(stringResource(R.string.settings_goal_protein), f.protein, { v -> onEditGoals { copy(protein = v) } }, "g", Modifier.weight(1f))
-                    GoalTile(stringResource(R.string.settings_goal_carbs), f.carbohydrates, { v -> onEditGoals { copy(carbohydrates = v) } }, "g", Modifier.weight(1f))
+                    GoalTile(stringResource(R.string.settings_goal_protein), f.protein, { v -> onEditGoals { copy(protein = v) } }, grams, Modifier.weight(1f))
+                    GoalTile(stringResource(R.string.settings_goal_carbs), f.carbohydrates, { v -> onEditGoals { copy(carbohydrates = v) } }, grams, Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GoalTile(stringResource(R.string.settings_goal_fat), f.fat, { v -> onEditGoals { copy(fat = v) } }, "g", Modifier.weight(1f))
-                    GoalTile(stringResource(R.string.settings_goal_fiber), f.fiber, { v -> onEditGoals { copy(fiber = v) } }, "g", Modifier.weight(1f))
+                    GoalTile(stringResource(R.string.settings_goal_fat), f.fat, { v -> onEditGoals { copy(fat = v) } }, grams, Modifier.weight(1f))
+                    GoalTile(stringResource(R.string.settings_goal_fiber), f.fiber, { v -> onEditGoals { copy(fiber = v) } }, grams, Modifier.weight(1f))
                 }
                 GoalTile(stringResource(R.string.settings_goal_steps), f.steps, { v -> onEditGoals { copy(steps = v) } }, stringResource(R.string.settings_goal_steps_unit), Modifier.fillMaxWidth(), last = true)
                 Text(
@@ -139,8 +151,13 @@ internal fun SettingsScreen(
         }
         item(key = "appearance-header") { SectionHeader(stringResource(R.string.settings_appearance_header)) }
         item(key = "appearance") {
+            val reduceTransparency = preferences?.reduceTransparency ?: false
             ContentCard(Modifier.introItem(intro, 2).fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The whole row toggles, so the switch is announced with its label.
+                Row(
+                    Modifier.toggleable(value = reduceTransparency, role = Role.Switch, onValueChange = onReduceTransparency),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.settings_reduce_transparency), style = MaterialTheme.typography.titleSmall)
                         Text(
@@ -149,7 +166,7 @@ internal fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Switch(checked = preferences?.reduceTransparency ?: false, onCheckedChange = onReduceTransparency)
+                    Switch(checked = reduceTransparency, onCheckedChange = null)
                 }
             }
         }
@@ -170,15 +187,18 @@ private fun GoalTile(
     val focus = remember { FocusRequester() }
     val style = (if (large) MaterialTheme.typography.displaySmall else MaterialTheme.typography.headlineSmall)
         .copy(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-    ContentCard(modifier, onClick = { focus.requestFocus() }, iridescent = large) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val description = stringResource(R.string.settings_goal_field_description, label, unit)
+    // Tapping anywhere on the tile focuses its field. A tap handler rather than a click, so the tile
+    // isn't a second stop for screen readers and keyboards next to the field itself.
+    ContentCard(modifier.pointerInput(focus) { detectTapGestures { focus.requestFocus() } }, iridescent = large) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.clearAndSetSemantics { })
         Row(verticalAlignment = Alignment.Bottom) {
             EndCursorTextField(
                 value = value,
                 onValueChange = { onValueChange(it.filter(Char::isDigit).take(6)) },
                 textStyle = style,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = if (last) ImeAction.Done else ImeAction.Next),
-                modifier = Modifier.focusRequester(focus).width(IntrinsicSize.Max),
+                modifier = Modifier.focusRequester(focus).width(IntrinsicSize.Max).semantics { contentDescription = description },
                 decorationBox = { field ->
                     Box {
                         if (value.isEmpty()) Text(stringResource(R.string.settings_goal_not_set), style = style.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Normal))
@@ -191,7 +211,7 @@ private fun GoalTile(
                     " $unit",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = if (large) 6.dp else 3.dp),
+                    modifier = Modifier.padding(bottom = if (large) 6.dp else 3.dp).clearAndSetSemantics { },
                 )
             }
         }

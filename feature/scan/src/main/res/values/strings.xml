@@ -4,6 +4,29 @@
     <string name="camera_access_title">Camera access needed</string>
     <string name="camera_access_body">Kaloria uses the camera only to read barcodes and nutrition labels. Images stay on your phone.</string>
     <string name="camera_access_allow">Allow camera</string>
+    <string name="camera_access_settings">Open settings</string>
+    <string name="camera_access_denied_body">Camera access is turned off for Kaloria. Turn it on in the app\'s settings to scan.</string>
+    <string name="camera_unavailable">Camera unavailable. Another app may be using it.</string>
+
+    <!-- Barcode scan screen -->
+    <string name="barcode_scan_back">Back</string>
+    <string name="barcode_scan_title">Scan barcode</string>
+    <string name="barcode_scan_torch">Torch</string>
+    <string name="barcode_scan_point">Point at a barcode</string>
+    <string name="barcode_scan_point_body">Hold it steady inside the frame. Your own foods are checked first, then Open Food Facts.</string>
+    <string name="barcode_scan_looking_up">Looking it up…</string>
+    <string name="barcode_scan_looking_up_body">Your foods, then Open Food Facts</string>
+    <string name="barcode_scan_log">Log</string>
+    <string name="barcode_scan_offline_title">You\'re offline</string>
+    <string name="barcode_scan_unavailable_title">Open Food Facts didn\'t answer</string>
+    <string name="barcode_scan_not_found_title">%1$s isn\'t in any database yet</string>
+    <string name="barcode_scan_offline_body">Scan the label to add it to your own foods now, or try again once you\'re connected.</string>
+    <string name="barcode_scan_unavailable_body">It may be busy for a moment. Try again, or scan the label to add it yourself.</string>
+    <string name="barcode_scan_not_found_body">Scan its nutrition label once and it\'s yours from then on.</string>
+    <string name="barcode_scan_scan_label">Scan nutrition label</string>
+    <string name="barcode_scan_enter_manually">Enter manually</string>
+    <string name="barcode_scan_scan_again">Scan again</string>
+    <string name="barcode_scan_try_again">Try again</string>
 
     <!-- Label scan screen -->
     <string name="label_scan_back">Back</string>
@@ -15,6 +38,7 @@
     <string name="label_scan_try_again">Try again</string>
     <string name="label_scan_no_table">No nutrition table found. Fill the frame with the table and try again.</string>
     <string name="label_scan_failed_message">Couldn\'t read the label.</string>
+    <string name="label_scan_capture_failed">Couldn\'t take the photo. Try again.</string>
     <string name="label_scan_flattened_description">The nutrition table, flattened</string>
     <string name="label_scan_table_found">Table found</string>
     <string name="label_scan_table_found_body">Flattened as it will be read. Hold steady and take the photo.</string>

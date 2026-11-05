@@ -53,7 +53,11 @@ class BarcodeScanViewModel @AssistedInject constructor(
     /** The logged food's name, after which the screen closes. */
     val done = doneChannel.receiveAsFlow()
 
-    /** Called from the camera analyzer thread for every frame with a code; only the first counts. */
+    /** Whether the found food is being logged, so a second tap on Log doesn't log it twice. */
+    var logging by mutableStateOf(false)
+        private set
+
+    /** Called on the main thread (ML Kit's listeners run there) for every confirmed read; only the first counts. */
     fun onBarcode(code: String) {
         if (state != BarcodeState.Scanning) return
         state = BarcodeState.LookingUp(code)
@@ -69,15 +73,24 @@ class BarcodeScanViewModel @AssistedInject constructor(
     fun defaultTime(): LocalTime = if (day == LocalDate.now(clock)) LocalTime.now(clock).withSecond(0).withNano(0) else LocalTime.NOON
 
     fun log(amount: Double, time: LocalTime) {
+        if (logging) return
         val found = (state as? BarcodeState.Found)?.result ?: return
+        logging = true
         viewModelScope.launch {
-            val food = when (found) {
-                is BarcodeResult.Own -> found.food
-                is BarcodeResult.Online -> catalog.import(found.food)
-                else -> return@launch
+            var sent = false
+            try {
+                val food = when (found) {
+                    is BarcodeResult.Own -> found.food
+                    is BarcodeResult.Online -> catalog.import(found.food)
+                    else -> return@launch
+                }
+                diary.logFood(food, amount, day.atTime(time).atZone(clock.zone).toInstant())
+                doneChannel.send(food.name)
+                sent = true
+            } finally {
+                // Stays set once logged: the screen is closing, and must not log again on the way out.
+                if (!sent) logging = false
             }
-            diary.logFood(food, amount, day.atTime(time).atZone(clock.zone).toInstant())
-            doneChannel.send(food.name)
         }
     }
 }

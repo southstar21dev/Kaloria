@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -31,9 +32,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.southstar21.kaloria.core.designsystem.component.ContentCard
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
+import java.time.temporal.WeekFields
 
 /** The current streak, the best and the total, over a grid of the last few weeks' logged days. */
 @Composable
@@ -75,9 +76,11 @@ internal fun StreakTile(state: ProgressUiState, modifier: Modifier = Modifier) {
 private fun ActivityGrid(days: Set<LocalDate>, today: LocalDate) {
     val filled = MaterialTheme.colorScheme.primary
     val empty = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+    // Weeks start where the user's locale starts them, like the Today screen's week strip.
+    val firstDay = WeekFields.of(LocalConfiguration.current.locales[0]).firstDayOfWeek
     // Which cells are filled, worked out once per change rather than on every draw.
-    val cells = remember(days, today) {
-        val start = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(ACTIVITY_WEEKS - 1L)
+    val cells = remember(days, today, firstDay) {
+        val start = today.with(TemporalAdjusters.previousOrSame(firstDay)).minusWeeks(ACTIVITY_WEEKS - 1L)
         Array(ACTIVITY_WEEKS * 7) { i ->
             val day = start.plusDays(i.toLong())
             when {

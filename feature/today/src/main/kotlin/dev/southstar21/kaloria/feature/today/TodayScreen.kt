@@ -19,9 +19,9 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -30,6 +30,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -41,10 +44,10 @@ import dev.southstar21.kaloria.core.designsystem.component.rememberIntro
 import dev.southstar21.kaloria.core.model.HealthAccess
 import dev.southstar21.kaloria.core.model.LogEntry
 import dev.southstar21.kaloria.core.model.Serving
+import dev.southstar21.kaloria.core.ui.LocalClock
 import dev.southstar21.kaloria.core.ui.PortionSheet
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 
 /**
  * @param onDayChange tells the app which day is shown, so the dock's add menu logs onto it.
@@ -61,7 +64,7 @@ fun TodayRoute(onDayChange: (LocalDate) -> Unit, onOpenSettings: () -> Unit, vie
     }
     TodayScreen(
         state = state,
-        greeting = stringResource(greetingFor(LocalTime.now())),
+        greeting = stringResource(greetingFor(LocalTime.now(LocalClock.current))),
         steps = viewModel.steps,
         onConnectSteps = { stepsPermission.launch(viewModel.stepsPermissions) },
         servingsFor = viewModel::servingsFor,
@@ -104,6 +107,12 @@ internal fun TodayScreen(
     val intro = rememberIntro()
     val haptics = LocalHapticFeedback.current
     val swipeThreshold = with(LocalDensity.current) { 72.dp.toPx() }
+    // The swipe handler outlives recompositions, so it reads the latest callbacks through these.
+    val previousDay by rememberUpdatedState(onPreviousDay)
+    val nextDay by rememberUpdatedState(onNextDay)
+    val previousDayLabel = stringResource(R.string.today_previous_day)
+    val nextDayLabel = stringResource(R.string.today_next_day)
+    val zone = LocalClock.current.zone
     val dock = LocalDockPadding.current
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -111,19 +120,32 @@ internal fun TodayScreen(
         modifier = Modifier
             .fillMaxSize()
             .glassSource()
+            // The swipe below, for screen readers and switch access.
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(previousDayLabel) {
+                        previousDay()
+                        true
+                    },
+                    CustomAccessibilityAction(nextDayLabel) {
+                        nextDay()
+                        true
+                    },
+                )
+            }
             // Swipe sideways anywhere to move between days.
-            .pointerInput(Unit) {
+            .pointerInput(swipeThreshold, haptics) {
                 var drag = 0f
                 detectHorizontalDragGestures(
                     onDragStart = { drag = 0f },
                     onDragEnd = {
                         if (drag > swipeThreshold) {
                             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            onPreviousDay()
+                            previousDay()
                         }
                         if (drag < -swipeThreshold) {
                             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            onNextDay()
+                            nextDay()
                         }
                     },
                 ) { _, amount -> drag += amount }
@@ -168,7 +190,7 @@ internal fun TodayScreen(
             per100 = entry.nutrientsPer100,
             servings = servings,
             initialAmount = entry.amount,
-            initialTime = entry.loggedAt.atZone(ZoneId.systemDefault()).toLocalTime(),
+            initialTime = entry.loggedAt.atZone(zone).toLocalTime(),
             confirmLabel = stringResource(R.string.today_save),
             onConfirm = { amount, time ->
                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)

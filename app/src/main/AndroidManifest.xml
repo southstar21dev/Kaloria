@@ -22,9 +22,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kaloria">
 
+        <!-- singleTop: widget shortcuts reach the running activity through onNewIntent instead of
+             recreating it. The portrait lock only holds on phones; from Android 16 the system
+             ignores it on large screens (600dp and wider), where the app runs in any orientation. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

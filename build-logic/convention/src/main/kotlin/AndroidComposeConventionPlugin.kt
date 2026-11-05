@@ -18,6 +18,11 @@ class AndroidComposeConventionPlugin : Plugin<Project> {
 
         extensions.configure(ComposeCompilerGradlePluginExtension::class.java) {
             stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file("compose_compiler_config.conf"))
+            // Stability reports and metrics, only when asked for: ./gradlew assembleRelease -PcomposeReports=true
+            if (providers.gradleProperty("composeReports").orNull == "true") {
+                reportsDestination.set(layout.buildDirectory.dir("compose-reports"))
+                metricsDestination.set(layout.buildDirectory.dir("compose-metrics"))
+            }
         }
 
         dependencies {
