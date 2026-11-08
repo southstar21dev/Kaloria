@@ -1,6 +1,6 @@
 name: Update screenshots
 
-# Baselines are recorded here because CI compares on Linux, and macOS renders glass differently.
+# Baselines are recorded on Linux because macOS renders glass differently.
 on:
   workflow_dispatch:
 
@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      actions: write
       contents: write
     steps:
       - uses: actions/checkout@v7
@@ -42,8 +41,3 @@ jobs:
           git commit -m "test: update screenshot baselines"
           git push
 
-      # Pushes made with GITHUB_TOKEN don't trigger workflows.
-      - name: Start CI
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ci.yml --ref "$GITHUB_REF_NAME"
