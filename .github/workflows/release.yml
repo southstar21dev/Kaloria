@@ -1,12 +1,11 @@
 name: Release
 
-# master: a release (v1.2.0). staging: a release candidate (v1.2.0-rc.1). semantic-release picks the
-# version from the commits since the last tag; if any warrant one, it builds the signed APKs, tags
-# the commit and publishes a GitHub Release with the changelog and both APKs. Obtainium (and anyone
+# master: a release (v1.2.0). semantic-release picks the version from the commits since the last
+# tag; if any warrant one, it builds the signed APKs, tags the commit and publishes a GitHub Release with the changelog and both APKs. Obtainium (and anyone
 # else watching the repo's releases) then offers the update.
 on:
   push:
-    branches: [master, staging]
+    branches: [master]
 
 concurrency:
   group: release-${{ github.ref }}

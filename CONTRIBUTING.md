@@ -16,15 +16,13 @@ down every contributor.
 | Branch | Purpose |
 |---|---|
 | `dev` | Integration; feature branches merge here |
-| `staging` | Testing before production, promoted from `dev` |
-| `master` | Production, promoted from `staging`; each promotion can create a version tag |
+| `master` | Production, promoted from `dev`; each promotion can create a version tag |
 
 1. Branch from `dev`, for example `feat/barcode-history`.
 2. Open a PR into `dev` and squash-merge it.
-3. To test a set of changes, open a PR from `dev` into `staging` and use a **merge commit**.
-4. To release, open a PR from `staging` into `master` and use a **merge commit**.
+3. To release, open a PR from `dev` into `master` and use a **merge commit**.
 
-Promotions need a merge commit so semantic-release can still see the individual commits. Coolify
+The promotion needs a merge commit so semantic-release can still see the individual commits. Coolify
 deploys the backend from `master`, so a promotion to `master` also ships any server changes.
 
 ## Commit messages

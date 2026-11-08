@@ -95,8 +95,7 @@ Kaloria is distributed through [GitHub Releases](https://github.com/southstar21d
 | **Recommended: [Obtainium](https://github.com/ImranR98/Obtainium)** | Tap the badge above (or add `https://github.com/southstar21dev/Kaloria` in Obtainium). It installs Kaloria and keeps it updated automatically. Set the APK filter to `arm64-v8a`. |
 | **Manual** | Download `kaloria-<version>-arm64-v8a.apk` (~26 MB, practically every phone in use) or `kaloria-<version>-universal.apk` (~72 MB, older 32-bit phones and emulators) from the latest release. |
 
-Requires Android 14 or newer. Release candidates from the `staging` branch are published as
-pre-releases; enable *Include prereleases* in Obtainium to test them.
+Requires Android 14 or newer.
 
 ## Sync with your own server
 
@@ -188,7 +187,7 @@ pocketbase.debugUrl=http://192.168.1.20:8090  # optional: debug builds' server
 ```
 
 Every push runs CI: unit and screenshot tests, lint, detekt, formatting and an R8 release build.
-Pushes to `staging` and `master` are released automatically by semantic-release with signed APKs.
+Pushes to `master` are released automatically by semantic-release with signed APKs.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branches and commit messages, and
 [docs/RELEASING.md](docs/RELEASING.md) for versions, signing and publishing.
 

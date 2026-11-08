@@ -7,7 +7,6 @@ GitHub builds, signs and publishes every release. Local builds are for developme
 | Push to | CI (`ci.yml`) | Release (`release.yml`) |
 |---|---|---|
 | `dev`, PRs | Tests, lint, detekt, formatting, R8 build | Nothing |
-| `staging` | Same | Release candidate, e.g. `v1.2.0-rc.1` (marked pre-release) |
 | `master` | Same | Release, e.g. `v1.2.0` |
 
 semantic-release reads the Conventional Commits since the last tag. If any warrant a release
@@ -21,8 +20,7 @@ changelog and the APKs. Otherwise nothing is published.
 them automatically. Add `https://github.com/southstar21dev/Kaloria` as an app and:
 
 - keep only the arm64 APK: *Filter APKs by regular expression* `arm64-v8a` (or `universal` on an
-  old 32-bit phone);
-- to also get release candidates from `staging`, turn on *Include prereleases*.
+  old 32-bit phone).
 
 F-Droid and IzzyOnDroid aren't an option: they don't accept apps with proprietary libraries, and
 Kaloria bundles Google's ML Kit.
