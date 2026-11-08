@@ -9,6 +9,10 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    ignore:
+      # Breaks parallel KSP tasks: https://github.com/google/ksp/issues/3286
+      - dependency-name: "com.google.devtools.ksp*"
+        versions: ["2.3.13"]
     groups:
       androidx:
         patterns: ["androidx.*"]
