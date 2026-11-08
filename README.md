@@ -182,11 +182,11 @@ pocketbase.debugUrl=http://192.168.1.20:8090  # optional: debug builds' server
 ./gradlew installDebug                     # dev.southstar21.kaloria.debug
 ./gradlew testDebugUnitTest                # unit tests, incl. label parser and sync engine
 ./gradlew :core:model:test                 # the plain-Kotlin module's tests
-./gradlew verifyRoborazziDebug             # screenshot tests (baselines are recorded on Linux in CI)
+./gradlew verifyRoborazziDebug             # screenshot tests (baselines are recorded on Linux)
 ./gradlew spotlessApply detekt lintDebug   # format, static analysis, lint
 ```
 
-Every push runs CI: unit and screenshot tests, lint, detekt, formatting and an R8 release build.
+Every push runs CI: lint, detekt, formatting and an R8 release build.
 Pushes to `master` are released automatically by semantic-release with signed APKs.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branches and commit messages, and
 [docs/RELEASING.md](docs/RELEASING.md) for versions, signing and publishing.

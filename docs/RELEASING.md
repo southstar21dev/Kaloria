@@ -6,7 +6,7 @@ GitHub builds, signs and publishes every release. Local builds are for developme
 
 | Push to | CI (`ci.yml`) | Release (`release.yml`) |
 |---|---|---|
-| `dev`, PRs | Tests, lint, detekt, formatting, R8 build | Nothing |
+| `dev`, PRs | Build, lint, detekt, formatting, R8 build | Nothing |
 | `master` | Same | Release, e.g. `v1.2.0` |
 
 semantic-release reads the Conventional Commits since the last tag. If any warrant a release

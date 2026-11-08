@@ -49,7 +49,7 @@ detekt reports only findings that aren't in `config/detekt/baseline.xml`.
 
 ## Screenshot tests
 
-CI is the source of truth for screenshots: baselines are rendered on Linux, and macOS draws the
+Screenshot baselines are rendered on Linux, and macOS draws the
 glass surfaces differently, so `verifyRoborazziDebug` is expected to fail on a Mac.
 
 After a UI change, run the **Update screenshots** workflow on your branch:
@@ -58,4 +58,4 @@ After a UI change, run the **Update screenshots** workflow on your branch:
 gh workflow run update-screenshots.yml --ref your-branch
 ```
 
-It records and commits the new baselines, then starts CI. Review the changed PNGs in the PR.
+It records and commits the new baselines. Review the changed PNGs in the PR.
