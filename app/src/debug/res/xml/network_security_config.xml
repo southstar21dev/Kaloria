@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true" />
+<!-- Debug builds only: they talk to a PocketBase on this machine or the LAN over plain HTTP.
+     Release builds have no network security config, so cleartext stays blocked there. -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
 </network-security-config>
