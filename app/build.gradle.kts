@@ -76,8 +76,12 @@ android {
     lint {
         // Lint the whole app at once from here, so cross-module checks (e.g. unused resources) work.
         checkDependencies = true
-        // Existing findings; new code must be clean.
-        baseline = file("lint-baseline.xml")
+        // No baseline: every warning fails the build. Deliberate exceptions are suppressed where they
+        // occur, with the reason beside them.
+        warningsAsErrors = true
+        // Dependabot proposes updates, and the KSP pin is deliberate. The universal APK carries
+        // x86_64 for ChromeOS and emulators; only the arm64 split leaves it out.
+        disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion", "ChromeOsAbiSupport")
     }
 }
 

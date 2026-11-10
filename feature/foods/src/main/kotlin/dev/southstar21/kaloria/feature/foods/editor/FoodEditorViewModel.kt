@@ -16,9 +16,11 @@ import dev.southstar21.kaloria.core.model.Food
 import dev.southstar21.kaloria.core.model.FoodSource
 import dev.southstar21.kaloria.core.model.Ids
 import dev.southstar21.kaloria.core.scanner.label.ExtractionMethod
+import dev.southstar21.kaloria.core.scanner.label.FieldWarning
 import dev.southstar21.kaloria.core.scanner.label.ScanDraftStore
 import dev.southstar21.kaloria.feature.foods.FoodEditorKey
 import java.io.File
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -38,6 +40,8 @@ data class FoodEditorState(
     val saveAttempts: Int = 0,
     /** A save or delete is under way; further taps are ignored. */
     val saving: Boolean = false,
+    /** Name of another food with the barcode typed, if any: allowed, but worth knowing. */
+    val barcodeUsedBy: String? = null,
 ) {
     val changed: Boolean get() = scan != null || form != initial
 }
@@ -46,7 +50,7 @@ data class ScanReview(
     val photo: File?,
     val method: ExtractionMethod,
     /** Field name (energy, protein, …) → why to double-check it. */
-    val warnings: Map<String, List<String>>,
+    val warnings: Map<String, List<FieldWarning>>,
 )
 
 @HiltViewModel(assistedFactory = FoodEditorViewModel.Factory::class)
@@ -106,17 +110,34 @@ class FoodEditorViewModel @AssistedInject constructor(
                 showErrors = restored?.showErrors ?: false,
                 saveAttempts = restored?.saveAttempts ?: 0,
                 scan = draft?.let { d ->
-                    ScanReview(d.photo, d.extraction.method, d.extraction.warnings.groupBy({ it.field }, { it.message }))
+                    ScanReview(d.photo, d.extraction.method, d.extraction.warnings.groupBy { it.field })
                 },
             )
+            checkBarcode()
         }
     }
 
     fun edit(transform: FoodForm.() -> FoodForm) {
+        val before = state.form.barcode
         state = state.copy(form = state.form.transform())
+        if (state.form.barcode != before) checkBarcode()
     }
 
-    fun save() {
+    private var barcodeCheck: Job? = null
+
+    /** Looks for another food with the barcode as typed, replacing a lookup for what was typed before. */
+    private fun checkBarcode() {
+        barcodeCheck?.cancel()
+        val code = state.form.barcode.trim()
+        val self = state.existing?.id ?: newId
+        barcodeCheck = viewModelScope.launch {
+            val other = code.takeIf { it.isNotEmpty() }?.let { foods.byBarcode(it) }?.takeIf { it.id != self }
+            state = state.copy(barcodeUsedBy = other?.name)
+        }
+    }
+
+    /** @param defaultServingName what a serving given only an amount is called, in the user's language. */
+    fun save(defaultServingName: String = DEFAULT_SERVING_NAME) {
         val current = state
         if (current.loading || current.saving) return
         if (current.form.errors.any) {
@@ -131,6 +152,8 @@ class FoodEditorViewModel @AssistedInject constructor(
                     id = existing?.id ?: newId,
                     source = existing?.source ?: if (fromLabel) FoodSource.Label else FoodSource.Manual,
                     sourceRef = existing?.sourceRef,
+                    original = existing,
+                    defaultServingName = defaultServingName,
                 ),
             )
             key.draftId?.let(drafts::remove)

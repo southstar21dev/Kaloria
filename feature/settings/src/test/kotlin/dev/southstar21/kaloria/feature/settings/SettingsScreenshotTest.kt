@@ -40,7 +40,7 @@ class SettingsScreenshotTest {
     @Test fun sign_in_error() = render(
         "settings_sign_in_error",
         signedOut,
-        SignInForm("http://10.0.2.2:8090", "me@kaloria.local", "x", error = "Wrong email or password."),
+        SignInForm("http://10.0.2.2:8090", "me@kaloria.local", "x", errorRes = R.string.settings_account_error_credentials),
     )
 
     @Test fun signed_in_edited() = render(

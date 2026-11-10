@@ -8,10 +8,12 @@ interface SyncTable<E> {
     val collection: String
 
     suspend fun dirty(): List<E>
-    suspend fun byIds(ids: List<String>): List<E>
 
-    /** Writes rows that came from the server; they are stored clean. */
-    suspend fun saveRemote(rows: List<E>)
+    /**
+     * Stores the rows from the server that are new here or newer than the local copy, clean, and
+     * returns how many. Comparing and writing is atomic, so a local edit can't slip in between.
+     */
+    suspend fun saveIfNewer(rows: List<E>): Int
 
     /** Clears the dirty flag of each pushed row that wasn't edited again meanwhile, in one go. */
     suspend fun markClean(rows: List<E>)

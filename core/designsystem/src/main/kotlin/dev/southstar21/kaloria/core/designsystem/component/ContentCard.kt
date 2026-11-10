@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -154,8 +155,10 @@ fun NoteChip(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null, conte
 /** A small uppercase heading above a group of cards, as in iOS grouped lists. */
 @Composable
 fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+    // In the app's language, not Locale.ROOT, so Turkish and Azerbaijani "i" become "İ".
+    val locale = LocalConfiguration.current.locales[0]
     Text(
-        text.uppercase(),
+        remember(text, locale) { text.uppercase(locale) },
         style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.8.sp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.semantics { heading() }.padding(start = 8.dp, top = 8.dp),

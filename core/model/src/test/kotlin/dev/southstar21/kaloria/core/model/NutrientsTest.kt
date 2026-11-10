@@ -37,6 +37,28 @@ class NutrientsTest {
     }
 
     @Test
+    fun `a total counts salt-only foods towards sodium even when another states sodium`() {
+        val usda = Nutrients(micros = mapOf(Micronutrient.Sodium to 200.0))
+        val euLabel = Nutrients(salt = 2.0) // 800 mg sodium
+        val both = Nutrients(salt = 1.0, micros = mapOf(Micronutrient.Sodium to 300.0)) // sodium as stated, salt not added again
+
+        assertEquals(1000.0, listOf(usda, euLabel).sum().sodiumMg!!, 1e-9)
+        assertEquals(1000.0, listOf(euLabel, usda).sum().sodiumMg!!, 1e-9)
+        assertEquals(1300.0, listOf(euLabel, usda, both).sum().sodiumMg!!, 1e-9)
+        assertEquals(1300.0, (euLabel + (usda + both)).sodiumMg!!, 1e-9)
+        // Salt itself is still only what the labels state.
+        assertEquals(3.0, listOf(euLabel, usda, both).sum().salt!!, 1e-9)
+    }
+
+    @Test
+    fun `sodium stays derived from salt while no food states it`() {
+        val total = listOf(Nutrients(salt = 1.0), Nutrients(salt = 0.5)).sum()
+        assertNull(total.micros[Micronutrient.Sodium])
+        assertEquals(600.0, total.sodiumMg!!, 1e-9)
+        assertNull(listOf(Nutrients(energyKcal = 1.0)).sum().sodiumMg)
+    }
+
+    @Test
     fun `atwater energy matches a consistent label`() {
         // 4·13.5 + 4·58.7 + 9·7 + 2·10 = 371.8
         assertEquals(371.8, oats.atwaterKcal!!, 1e-9)

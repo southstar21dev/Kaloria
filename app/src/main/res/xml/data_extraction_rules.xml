@@ -7,7 +7,14 @@
         <exclude domain="sharedpref" />
         <exclude domain="file" />
     </cloud-backup>
+    <!--
+        A phone-to-phone transfer doesn't carry the database, so it mustn't carry state that describes
+        it either: the session's sync cursors would make the new phone skip everything older, and Health
+        Connect sync's list of imported weigh-ins would make it delete them as vanished.
+    -->
     <device-transfer>
         <exclude domain="database" />
+        <exclude domain="file" path="datastore/session.preferences_pb" />
+        <exclude domain="sharedpref" path="health_weight_sync.xml" />
     </device-transfer>
 </data-extraction-rules>

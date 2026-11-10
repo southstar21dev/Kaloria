@@ -5,6 +5,8 @@ import dev.southstar21.kaloria.core.model.Micronutrient
 import dev.southstar21.kaloria.core.model.Nutrients
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -51,80 +53,135 @@ object NanoResponseParser {
         isLenient = true
     }
 
-    /** Parses the model's reply; null if it isn't usable JSON. Checks are added by the caller. */
-    fun parse(reply: String, ocrText: String): LabelExtraction? {
-        // An object, or now and then a list of them (the model answering per column): the first.
+    /** A value the model wrote as a string: "2,0", "<0,5", "12 g", "1 338". */
+    private val leadingNumber = Regex("""^\s*(<)?\s*(\d+(?:[.,]\d+)?)""")
+    private val digitGroupSpace = Regex("""(?<=\d)[ \u00A0](?=\d{3}(?!\d))""")
+
+    /** The fields besides energy: the editor's key, the reply's key, and the value in [Nutrients]. */
+    private class Slot(val field: String, val key: String, val of: (Nutrients) -> Double?)
+
+    private val slots = listOf(
+        Slot("protein", "protein_g", Nutrients::protein),
+        Slot("carbohydrates", "carbohydrates_g", Nutrients::carbohydrates),
+        Slot("sugars", "sugars_g", Nutrients::sugars),
+        Slot("fat", "fat_g", Nutrients::fat),
+        Slot("saturatedFat", "saturated_fat_g", Nutrients::saturatedFat),
+        Slot("fiber", "fiber_g", Nutrients::fiber),
+        Slot("salt", "salt_g", Nutrients::salt),
+    )
+
+    /** Parses the model's reply; null if it isn't usable JSON or read nothing. Checks are added here too. */
+    fun parse(reply: String, ocrText: String): LabelExtraction? = objectIn(reply)?.let { extraction(it, ocrText) }
+
+    /** An object, or now and then a list of them (the model answering per column): the first. */
+    private fun objectIn(reply: String): JsonObject? {
         val start = reply.indexOfFirst { it == '{' || it == '[' }
         val end = reply.indexOfLast { it == '}' || it == ']' }
-        if (start < 0 || end <= start) return null
-        val element = runCatching { json.parseToJsonElement(reply.substring(start, end + 1)) }.getOrNull() ?: return null
-        val obj = (element as? JsonObject) ?: ((element as? JsonArray)?.firstOrNull() as? JsonObject) ?: return null
+        val element = if (start < 0 || end <= start) null else runCatching { json.parseToJsonElement(reply.substring(start, end + 1)) }.getOrNull()
+        return (element as? JsonObject) ?: ((element as? JsonArray)?.firstOrNull() as? JsonObject)
+    }
 
-        fun num(key: String): Double? = (obj[key] as? JsonPrimitive)?.let {
-            it.doubleOrNull ?: it.contentOrNull?.replace(',', '.')?.toDoubleOrNull()
-        }?.takeIf { it >= 0 }
-
-        val kcal = num("energy_kcal")
-        val kj = num("energy_kj")
+    private fun extraction(obj: JsonObject, ocrText: String): LabelExtraction? {
         val warnings = mutableListOf<FieldWarning>()
-        val energy = kcal ?: kj?.let {
-            warnings += FieldWarning("energy", "Only kJ was found; kcal was calculated from it.")
-            it / Nutrients.KJ_PER_KCAL
+        fun num(key: String, field: String): Double? = numberOf(obj[key])?.let { (value, lessThan) ->
+            if (lessThan) warnings += FieldWarning(field, WarningKind.LessThan, listOf(value.trimmed()))
+            value
         }
-        val micros = (obj["micros"] as? JsonObject).orEmpty().mapNotNull { (key, value) ->
-            val micro = Micronutrient.fromKey(key) ?: return@mapNotNull null
-            (value as? JsonPrimitive)?.doubleOrNull?.takeIf { it >= 0 }?.let { micro to it }
-        }.toMap()
+        val model = mapOf("energy" to energy(num("energy_kcal", "energy"), num("energy_kj", "energy"), warnings)) +
+            slots.associate { it.field to num(it.key, it.field) }
+        // Nothing but nulls and zeros: the model read nothing, and the text rules do better alone.
+        if (model.values.none { it != null && it > 0 }) return null
 
-        // What the model left out but the text plainly has, the text rules fill in, flagged.
-        val rules = NutritionLabelParser.parse(ocrText.lines()).nutrients
-        fun orRules(field: String, model: Double?, rule: Double?): Double? = model ?: rule?.also {
-            warnings += FieldWarning(field, "The AI missed this; it was read from the label's text.")
-        }
+        // What the model left out but the text plainly has, the text rules fill in, flagged, with
+        // what the rules noted about reading it.
+        val rules = NutritionLabelParser.read(ocrText.lines())
+        val ruled = rules.nutrients.byField()
+        val values = model.mapValues { (field, value) -> settle(field, value, ruled[field], rules, warnings) }
         val nutrients = Nutrients(
-            energyKcal = orRules("energy", energy, rules.energyKcal),
-            protein = orRules("protein", num("protein_g"), rules.protein),
-            carbohydrates = orRules("carbohydrates", num("carbohydrates_g"), rules.carbohydrates),
-            sugars = orRules("sugars", num("sugars_g"), rules.sugars),
-            fat = orRules("fat", num("fat_g"), rules.fat),
-            saturatedFat = orRules("saturatedFat", num("saturated_fat_g"), rules.saturatedFat),
-            fiber = orRules("fiber", num("fiber_g"), rules.fiber),
-            salt = orRules("salt", num("salt_g"), rules.salt),
-            micros = micros,
+            energyKcal = values["energy"],
+            protein = values["protein"],
+            carbohydrates = values["carbohydrates"],
+            sugars = values["sugars"],
+            fat = values["fat"],
+            saturatedFat = values["saturatedFat"],
+            fiber = values["fiber"],
+            salt = values["salt"],
+            // Sodium the text rules read reaches the micros too, unless the model gave its own.
+            micros = rules.nutrients.micros + microsIn(obj),
         )
         val per = (obj["per"] as? JsonPrimitive)?.contentOrNull?.lowercase().orEmpty()
         return LabelExtraction(
             nutrients = nutrients,
             unit = if ("ml" in per) AmountUnit.Millilitre else AmountUnit.Gram,
             method = ExtractionMethod.GeminiNano,
-            warnings = warnings + LabelChecks.check(nutrients) + ocrDisagreements(nutrients, rules),
+            warnings = warnings + LabelChecks.check(nutrients) + ocrDisagreements(nutrients, rules.nutrients),
             name = (obj["name"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() && it != "null" },
             brand = (obj["brand"] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() && it != "null" },
             rawText = ocrText,
         )
     }
 
+    /** kcal, or kcal worked out from kJ, with kJ checked against kcal when the model gave both. */
+    private fun energy(kcal: Double?, kj: Double?, warnings: MutableList<FieldWarning>): Double? {
+        if (kcal != null && kj != null && EnergyText.disagree(kcal, kj)) warnings += FieldWarning("energy", WarningKind.EnergyUnitsDisagree)
+        if (kcal == null && kj != null) warnings += FieldWarning("energy", WarningKind.KcalFromKj)
+        return kcal ?: kj?.let { it / Nutrients.KJ_PER_KCAL }
+    }
+
+    /**
+     * The model's value, or the rules' when the model has none. A 0 from the model where the text
+     * reads more is a miss too (models write 0 for "not found"), and one the text can't confirm is
+     * kept but flagged.
+     */
+    private fun settle(field: String, model: Double?, rule: Double?, rules: LabelExtraction, warnings: MutableList<FieldWarning>): Double? = when {
+        model != null && (model > 0 || rule == null || rule == 0.0) -> model.also {
+            if (model == 0.0 && rule == null) warnings += FieldWarning(field, WarningKind.ModelZero)
+        }
+
+        rule != null -> rule.also {
+            warnings += FieldWarning(field, WarningKind.ModelMissed)
+            warnings += rules.warnings.filter { it.field == field }
+        }
+
+        else -> null
+    }
+
+    /** A number, or a number written as a string; never negative, infinite or NaN. With whether it said "less than". */
+    private fun numberOf(element: JsonElement?): Pair<Double, Boolean>? {
+        val primitive = element as? JsonPrimitive
+        val parsed = when {
+            primitive == null || primitive is JsonNull -> null
+
+            primitive.isString -> leadingNumber.find(primitive.content.replace(digitGroupSpace, ""))
+                ?.let { it.groupValues[2].toLabelNumber() to it.groupValues[1].isNotEmpty() }
+
+            else -> primitive.doubleOrNull?.let { it to false }
+        }
+        return parsed?.takeIf { it.first.isFinite() && it.first >= 0 }
+    }
+
+    private fun microsIn(obj: JsonObject): Map<Micronutrient, Double> = (obj["micros"] as? JsonObject).orEmpty().mapNotNull { (key, value) ->
+        Micronutrient.fromKey(key)?.let { micro -> numberOf(value)?.let { micro to it.first } }
+    }.toMap()
+
+    private fun Nutrients.byField(): Map<String, Double?> = mapOf("energy" to energyKcal) + slots.associate { it.field to it.of(this) }
+
     /**
      * A second opinion: where the rule parser read a different number from the OCR text, the
      * model may have hallucinated or misread, so the field is flagged for review.
      */
-    private fun ocrDisagreements(model: Nutrients, rules: Nutrients): List<FieldWarning> = listOf(
-        Triple("energy", model.energyKcal, rules.energyKcal),
-        Triple("protein", model.protein, rules.protein),
-        Triple("carbohydrates", model.carbohydrates, rules.carbohydrates),
-        Triple("sugars", model.sugars, rules.sugars),
-        Triple("fat", model.fat, rules.fat),
-        Triple("saturatedFat", model.saturatedFat, rules.saturatedFat),
-        Triple("fiber", model.fiber, rules.fiber),
-        Triple("salt", model.salt, rules.salt),
-    ).mapNotNull { (field, a, b) ->
-        if (a != null && b != null && kotlin.math.abs(a - b) > maxOf(0.15, b * 0.03)) {
-            FieldWarning(field, "AI read ${a.trimmed()}, the text reads ${b.trimmed()}. Check the photo.")
-        } else {
-            null
+    private fun ocrDisagreements(model: Nutrients, rules: Nutrients): List<FieldWarning> {
+        val ruled = rules.byField()
+        return model.byField().mapNotNull { (field, a) ->
+            val b = ruled[field]
+            if (a != null && b != null && kotlin.math.abs(a - b) > maxOf(0.15, b * 0.03)) {
+                FieldWarning(field, WarningKind.ModelDisagrees, listOf(a.trimmed(), b.trimmed()))
+            } else {
+                null
+            }
         }
     }
 
     private fun Double.trimmed() = if (this == Math.floor(this)) toLong().toString() else toString()
-    private fun JsonObject?.orEmpty(): Map<String, kotlinx.serialization.json.JsonElement> = this ?: emptyMap()
+    private fun JsonObject?.orEmpty(): Map<String, JsonElement> = this ?: emptyMap()
 }

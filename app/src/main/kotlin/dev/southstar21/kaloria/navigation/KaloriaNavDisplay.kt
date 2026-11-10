@@ -1,6 +1,5 @@
 package dev.southstar21.kaloria.navigation
 
-import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -18,7 +17,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
-import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -37,7 +34,6 @@ import dev.southstar21.kaloria.core.designsystem.component.FloatingGlassScope
 import dev.southstar21.kaloria.core.designsystem.component.GlassBackdrop
 import dev.southstar21.kaloria.core.designsystem.component.LocalDockPadding
 import dev.southstar21.kaloria.core.designsystem.component.rememberGlassLayer
-import dev.southstar21.kaloria.core.ui.LocalClock
 import dev.southstar21.kaloria.feature.foods.FoodEditorKey
 import dev.southstar21.kaloria.feature.foods.FoodsKey
 import dev.southstar21.kaloria.feature.foods.editor.FoodEditorRoute
@@ -56,7 +52,6 @@ import dev.southstar21.kaloria.feature.today.TodayKey
 import dev.southstar21.kaloria.feature.today.TodayRoute
 import dev.southstar21.kaloria.widget.ACTION_SCAN_BARCODE
 import dev.southstar21.kaloria.widget.ACTION_SEARCH_FOOD
-import java.time.LocalDate
 
 /** Places the app can be opened directly from outside, e.g. the home screen widget. */
 enum class Shortcut {
@@ -65,7 +60,7 @@ enum class Shortcut {
     ;
 
     companion object {
-        fun from(intent: Intent?) = when (intent?.action) {
+        fun from(action: String?) = when (action) {
             ACTION_SCAN_BARCODE -> ScanBarcode
             ACTION_SEARCH_FOOD -> SearchFood
             else -> null
@@ -76,12 +71,10 @@ enum class Shortcut {
 @Composable
 fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit = {}) {
     val backStack = rememberNavBackStack(TodayKey)
-    val clock = LocalClock.current
     LaunchedEffect(shortcut) {
-        val today = LocalDate.now(clock).toEpochDay()
         when (shortcut) {
-            Shortcut.ScanBarcode -> backStack.openOverToday(BarcodeScanKey(today))
-            Shortcut.SearchFood -> backStack.openOverToday(FoodSearchKey(today))
+            Shortcut.ScanBarcode -> backStack.openShortcut(BarcodeScanKey())
+            Shortcut.SearchFood -> backStack.openShortcut(FoodSearchKey())
             null -> return@LaunchedEffect
         }
         onShortcutHandled()
@@ -95,48 +88,51 @@ fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit 
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(topLevel) { if (topLevel == null) menuOpen = false }
-    // The day the Today tab is showing; additions from the dock go there. Only read when adding,
-    // never during composition, so swiping between days doesn't recompose the whole app shell.
-    val todayDay = rememberSaveable { mutableLongStateOf(LocalDate.now(clock).toEpochDay()) }
-    fun addDay() = if (backStack.lastOrNull() == TodayKey) todayDay.longValue else LocalDate.now(clock).toEpochDay()
+    // The day the Today tab is showing, null while that's today; additions from the dock go there.
+    // Only read when adding, never during composition, so swiping between days doesn't recompose
+    // the whole app shell.
+    val shownDay = rememberSaveable { mutableStateOf<Long?>(null) }
+
+    // Null for today, which the search resolves when it logs, in case midnight passes meanwhile.
+    fun addDay(): Long? = if (backStack.lastOrNull() == TodayKey) shownDay.value else null
     val saveableState = rememberSaveableStateHolderNavEntryDecorator<NavKey>()
     val viewModelStore = rememberViewModelStoreNavEntryDecorator<NavKey>()
     val decorators = remember(saveableState, viewModelStore) { listOf(saveableState, viewModelStore) }
     val routes = entryProvider {
         entry<TodayKey> {
-            TodayRoute(onDayChange = { todayDay.longValue = it.toEpochDay() }, onOpenSettings = { backStack.add(SettingsKey) })
+            TodayRoute(onDayChange = { shownDay.value = it?.toEpochDay() }, onOpenSettings = { backStack.push(SettingsKey) })
         }
         entry<FoodSearchKey> { key ->
             FoodSearchRoute(
                 key = key,
-                onBack = { backStack.removeLastOrNull() },
-                onCreateFood = { name -> backStack.add(FoodEditorKey(name = name.ifBlank { null })) },
-                onScanBarcode = { backStack.add(BarcodeScanKey(key.epochDay)) },
+                onBack = { backStack.pop(key) },
+                onCreateFood = { name -> backStack.push(FoodEditorKey(name = name.ifBlank { null })) },
+                onScanBarcode = { backStack.push(BarcodeScanKey(key.epochDay)) },
             )
         }
         entry<BarcodeScanKey> { key ->
             BarcodeScanRoute(
                 key = key,
-                onBack = { backStack.removeLastOrNull() },
-                onLogged = { backStack.removeLastOrNull() },
-                onScanLabel = { code -> backStack.replaceLast(LabelScanKey(code)) },
-                onEnterManually = { code -> backStack.replaceLast(FoodEditorKey(barcode = code)) },
+                onBack = { backStack.pop(key) },
+                onLogged = { backStack.pop(key) },
+                onScanLabel = { code -> backStack.replace(key, LabelScanKey(code)) },
+                onEnterManually = { code -> backStack.replace(key, FoodEditorKey(barcode = code)) },
             )
         }
         entry<LabelScanKey> { key ->
             LabelScanRoute(
                 key = key,
-                onBack = { backStack.removeLastOrNull() },
-                onReview = { draftId, barcode -> backStack.replaceLast(FoodEditorKey(barcode = barcode, draftId = draftId)) },
+                onBack = { backStack.pop(key) },
+                onReview = { draftId, barcode -> backStack.replace(key, FoodEditorKey(barcode = barcode, draftId = draftId)) },
             )
         }
         entry<FoodsKey> {
-            FoodsRoute(onOpenFood = { id -> backStack.add(FoodEditorKey(foodId = id)) })
+            FoodsRoute(onOpenFood = { id -> backStack.push(FoodEditorKey(foodId = id)) })
         }
         entry<FoodEditorKey> { key ->
-            FoodEditorRoute(key = key, onDone = { backStack.removeLastOrNull() })
+            FoodEditorRoute(key = key, onDone = { backStack.pop(key) })
         }
-        entry<SettingsKey> { SettingsRoute(onBack = { backStack.removeLastOrNull() }) }
+        entry<SettingsKey> { SettingsRoute(onBack = { backStack.pop(SettingsKey) }) }
         entry<ProgressKey> { ProgressRoute() }
     }
 
@@ -147,7 +143,7 @@ fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit 
             NavDisplay(
                 modifier = Modifier.layerBackdrop(screens),
                 backStack = backStack,
-                onBack = { backStack.removeLastOrNull() },
+                onBack = { backStack.back() },
                 transitionSpec = forward(),
                 popTransitionSpec = back(),
                 predictivePopTransitionSpec = predictiveBack(),
@@ -171,7 +167,7 @@ fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit 
                         onMenuOpenChange = { menuOpen = it },
                         onSelect = { backStack.navigateTopLevel(it.key) },
                         onAdd = { action ->
-                            backStack.add(
+                            backStack.push(
                                 when (action) {
                                     AddAction.ScanLabel -> LabelScanKey()
                                     AddAction.ScanBarcode -> BarcodeScanKey(addDay())
@@ -185,23 +181,4 @@ fun KaloriaNavDisplay(shortcut: Shortcut? = null, onShortcutHandled: () -> Unit 
             }
         }
     }
-}
-
-private fun NavBackStack<NavKey>.openOverToday(key: NavKey) {
-    clear()
-    add(TodayKey)
-    add(key)
-}
-
-private fun NavBackStack<NavKey>.replaceLast(key: NavKey) {
-    removeLastOrNull()
-    add(key)
-}
-
-/** Switching tabs resets to that tab's root; Today always stays at the bottom so back exits from it. */
-private fun NavBackStack<NavKey>.navigateTopLevel(key: NavKey) {
-    if (lastOrNull() == key) return
-    clear()
-    add(TodayKey)
-    if (key != TodayKey) add(key)
 }

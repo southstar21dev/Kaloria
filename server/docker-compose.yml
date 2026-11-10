@@ -1,5 +1,12 @@
 # Local development server. The app's debug build talks to http://10.0.2.2:8090 (the emulator's
 # view of this machine). Admin UI: http://localhost:8090/_/
+#
+# For a server on the internet:
+# - Put it behind a reverse proxy that terminates TLS (release builds only connect over HTTPS),
+#   and publish the port on loopback only so plain HTTP isn't reachable from outside:
+#   "127.0.0.1:8090:8090" instead of "8090:8090". Consider restricting /_/ (the admin UI) at the proxy.
+# - The container runs PocketBase as root (the base image has no other user). A non-root user would
+#   also need ./pb_data owned by that user on the host.
 services:
   pocketbase:
     build: .
@@ -8,6 +15,8 @@ services:
     environment:
       # No default password: set both (e.g. in a git-ignored server/.env) to create or reset the
       # admin on start. Without them, open the admin UI once and create the admin there.
+      # PocketBase takes the password only as a command-line argument, so while the admin is being
+      # set it shows in the container's process list; once the admin exists, unset both.
       PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-}
       PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
     volumes:

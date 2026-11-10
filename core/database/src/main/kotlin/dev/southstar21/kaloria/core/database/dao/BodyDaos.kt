@@ -5,7 +5,9 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import dev.southstar21.kaloria.core.database.model.GoalsEntity
+import dev.southstar21.kaloria.core.database.model.VANISHED_FROM_HEALTH_CONNECT
 import dev.southstar21.kaloria.core.database.model.WeightEntryEntity
+import dev.southstar21.kaloria.core.database.model.nextUpdatedAt
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -23,11 +25,16 @@ interface WeightDao : SyncDao<WeightEntryEntity> {
     @Upsert
     suspend fun upsert(entity: WeightEntryEntity)
 
-    @Query("UPDATE weight_entries SET deleted = 1, dirty = 1, updatedAt = :now WHERE id = :id")
+    // Never stamped earlier than the row's current version: see [nextUpdatedAt].
+    @Query("UPDATE weight_entries SET deleted = 1, dirty = 1, updatedAt = MAX(:now, updatedAt + 1) WHERE id = :id")
     suspend fun softDelete(id: String, now: Long)
 
-    @Query("UPDATE weight_entries SET deleted = 1, dirty = 1, updatedAt = :now WHERE id IN (:ids)")
-    suspend fun softDeleteAll(ids: List<String>, now: Long)
+    /** Deletes imports that disappeared from Health Connect, marked so they can come back (see [VANISHED_FROM_HEALTH_CONNECT]). */
+    @Query(
+        "UPDATE weight_entries SET deleted = 1, dirty = 1, healthConnectId = '$VANISHED_FROM_HEALTH_CONNECT', " +
+            "updatedAt = MAX(:now, updatedAt + 1) WHERE id IN (:ids)",
+    )
+    suspend fun markVanished(ids: List<String>, now: Long)
 
     /** Rows from before imports had valid ids: `hc:<Health Connect id>`. They never reached the server. */
     @Query("SELECT * FROM weight_entries WHERE id LIKE 'hc:%'")
@@ -45,9 +52,9 @@ interface WeightDao : SyncDao<WeightEntryEntity> {
 
     /** Applies one Health Connect import round at once, so observers see one change, not one per row. */
     @Transaction
-    suspend fun applyImport(upserts: List<WeightEntryEntity>, deletedIds: List<String>, now: Long) {
+    suspend fun applyImport(upserts: List<WeightEntryEntity>, vanishedIds: List<String>, now: Long) {
         if (upserts.isNotEmpty()) upsertAll(upserts)
-        if (deletedIds.isNotEmpty()) softDeleteAll(deletedIds, now)
+        if (vanishedIds.isNotEmpty()) markVanished(vanishedIds, now)
     }
 
     @Query("SELECT * FROM weight_entries WHERE dirty = 1")
@@ -72,10 +79,15 @@ interface GoalsDao : SyncDao<GoalsEntity> {
     @Upsert
     suspend fun upsert(entity: GoalsEntity)
 
-    /** Saves over the live row, or creates it; atomic, so two quick saves can't make two rows. */
+    /**
+     * Saves over the live row, or creates it; atomic, so two quick saves can't make two rows. Stamped
+     * no earlier than just after the row it replaces (see [nextUpdatedAt]).
+     */
     @Transaction
     suspend fun saveCurrent(newId: String, build: (id: String) -> GoalsEntity) {
-        upsert(build(current()?.id ?: newId))
+        val current = current()
+        val entity = build(current?.id ?: newId)
+        upsert(entity.copy(updatedAt = nextUpdatedAt(entity.updatedAt, current?.updatedAt)))
     }
 
     @Query("SELECT * FROM goals WHERE dirty = 1")

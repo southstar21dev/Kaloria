@@ -1,5 +1,6 @@
 package dev.southstar21.kaloria.feature.today
 
+import android.content.res.Resources
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
@@ -38,7 +40,9 @@ import dev.southstar21.kaloria.core.model.LogEntry
 import dev.southstar21.kaloria.core.model.Micronutrient
 import dev.southstar21.kaloria.core.model.Nutrients
 import dev.southstar21.kaloria.core.ui.gramsText
+import dev.southstar21.kaloria.core.ui.gramsUnit
 import dev.southstar21.kaloria.core.ui.kcalText
+import dev.southstar21.kaloria.core.ui.nameRes
 import dev.southstar21.kaloria.core.ui.timeText
 import kotlin.math.roundToInt
 
@@ -107,7 +111,11 @@ internal fun MicroCard(totals: Nutrients, targets: Map<Micronutrient, Double>, m
     val sugars = stringResource(R.string.today_micro_sugars)
     val saturatedFat = stringResource(R.string.today_micro_saturated_fat)
     val salt = stringResource(R.string.today_micro_salt)
-    val rows = remember(totals, targets, sugars, saturatedFat, salt) { microRows(totals, targets, sugars, saturatedFat, salt) }
+    val grams = gramsUnit()
+    val resources = LocalResources.current
+    val rows = remember(totals, targets, sugars, saturatedFat, salt, grams, resources) {
+        microRows(totals, targets, MicroLabels(sugars, saturatedFat, salt, grams, resources))
+    }
     val chevron by animateFloatAsState(if (expanded) 180f else 0f, spring(dampingRatio = 0.6f), label = "chevron")
     val state = stringResource(if (expanded) R.string.today_expanded else R.string.today_collapsed)
     ContentCard(modifier.fillMaxWidth().semantics { stateDescription = state }, onClick = { expanded = !expanded }) {
@@ -140,22 +148,21 @@ internal fun MicroCard(totals: Nutrients, targets: Map<Micronutrient, Double>, m
     }
 }
 
+/** The words [microRows] needs, read from resources by the composable that calls it. */
+private class MicroLabels(val sugars: String, val saturatedFat: String, val salt: String, val grams: String, val resources: Resources)
+
 /** Label, value text and raw value of each tracked micronutrient (plus sugars, saturated fat, salt). */
-private fun microRows(
-    totals: Nutrients,
-    targets: Map<Micronutrient, Double>,
-    sugarsLabel: String,
-    saturatedFatLabel: String,
-    saltLabel: String,
-) = buildList {
-    totals.sugars?.let { add(Triple(sugarsLabel, it.gramsText(), null)) }
-    totals.saturatedFat?.let { add(Triple(saturatedFatLabel, it.gramsText(), null)) }
-    totals.salt?.let { add(Triple(saltLabel, it.gramsText(), null)) }
+private fun microRows(totals: Nutrients, targets: Map<Micronutrient, Double>, labels: MicroLabels) = buildList {
+    totals.sugars?.let { add(Triple(labels.sugars, it.gramsText(labels.grams), null)) }
+    totals.saturatedFat?.let { add(Triple(labels.saturatedFat, it.gramsText(labels.grams), null)) }
+    totals.salt?.let { add(Triple(labels.salt, it.gramsText(labels.grams), null)) }
     Micronutrient.entries.forEach { m ->
-        val value = totals.micros[m] ?: if (m == Micronutrient.Sodium) totals.sodiumMg else null
+        // Sodium includes what salt-only foods contribute; the total resolves it per entry.
+        val value = if (m == Micronutrient.Sodium) totals.sodiumMg else totals.micros[m]
         if (value != null || targets[m] != null) {
-            val target = targets[m]?.let { " / ${it.gramsText(m.unit.symbol)}" }.orEmpty()
-            add(Triple(m.label, (value ?: 0.0).gramsText(m.unit.symbol) + target, value))
+            val amount = (value ?: 0.0).gramsText(m.unit.symbol)
+            val text = targets[m]?.let { labels.resources.getString(R.string.today_micro_of_target, amount, it.gramsText(m.unit.symbol)) } ?: amount
+            add(Triple(labels.resources.getString(m.nameRes), text, value))
         }
     }
 }

@@ -44,7 +44,8 @@ data class Nutrients(
         fiber = fiber.plusNullable(other.fiber),
         salt = salt.plusNullable(other.salt),
         micros = (micros.keys + other.micros.keys).associateWith {
-            (micros[it] ?: 0.0) + (other.micros[it] ?: 0.0)
+            // Sodium is resolved per side first: one food stating sodium mustn't hide another's salt.
+            if (it == Micronutrient.Sodium) (sodiumMg ?: 0.0) + (other.sodiumMg ?: 0.0) else (micros[it] ?: 0.0) + (other.micros[it] ?: 0.0)
         },
     )
 

@@ -48,6 +48,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -104,18 +105,19 @@ fun PortionSheet(
 ) {
     val sheetState = rememberBottomSheetState(SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
     val units = rememberPortionUnits(unit)
-    var shown by remember { mutableStateOf(servings) }
+    // Keyed, so servings that arrive after the sheet opens replace the empty list instead of being
+    // ignored, and an addition is never saved over servings the sheet didn't show.
+    var shown by remember(servings) { mutableStateOf(servings) }
     // The amount in grams or ml, kept exact when it comes from a serving or a unit switch, so
     // rounding the display (11.16 fl oz) never changes what's logged (330 ml).
-    var exact by rememberSaveable { mutableStateOf(initialAmount ?: servings.firstOrNull()?.amount ?: 100.0) }
+    var exact by rememberSaveable { mutableDoubleStateOf(initialAmount ?: servings.firstOrNull()?.amount ?: 100.0) }
     var amountText by rememberSaveable { mutableStateOf(units.current.format(exact)) }
     var time by rememberSaveable { mutableStateOf(initialTime) }
     var pickingTime by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<ServingEdit?>(null) }
-    val typed = amountText.parseDecimal()
-    val amount = if (typed != null && units.current.format(exact) == amountText) exact else typed?.let(units.current::toBase)
+    val amount = portionAmount(amountText, exact, units.current)
     val portion = amount?.let(per100::scaledTo)
-    val valid = amount != null && amount > 0
+    val valid = isValidPortion(amount)
     val scope = rememberCoroutineScope()
     // Set once a button starts closing the sheet, so a second tap while it slides away does nothing.
     var closing by remember { mutableStateOf(false) }
@@ -183,9 +185,10 @@ fun PortionSheet(
                 current = units.current,
                 options = units.options,
                 onUnit = { new ->
-                    amount?.let { exact = it }
+                    val (switched, text) = switchUnit(amountText, exact, units.current, new)
                     units.choose(new)
-                    amountText = new.format(exact)
+                    exact = switched
+                    amountText = text
                 },
                 valid = valid,
             )
@@ -199,14 +202,14 @@ fun PortionSheet(
                             exact = serving.amount
                             amountText = units.current.format(serving.amount)
                         },
-                        onLongClick = onServingsChange?.let { { editing = ServingEdit(index, serving.name, units.current.format(serving.amount)) } },
+                        onLongClick = onServingsChange?.let { { editing = ServingEdit(index, serving.name, units.current.format(serving.amount), serving.amount) } },
                         onLongClickLabel = stringResource(R.string.portion_sheet_edit_serving),
                     ) {
                         Text(stringResource(R.string.portion_sheet_serving_pill, serving.name, units.current.format(serving.amount), units.current.symbol), style = MaterialTheme.typography.labelLarge)
                     }
                 }
                 if (onServingsChange != null) {
-                    Pill(outlined = true, onClick = { editing = ServingEdit(null, "", amountText) }) {
+                    Pill(outlined = true, onClick = { editing = ServingEdit(null, "", amountText, amount) }) {
                         Icon(Icons.Rounded.Add, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.portion_sheet_add_serving), style = MaterialTheme.typography.labelLarge)

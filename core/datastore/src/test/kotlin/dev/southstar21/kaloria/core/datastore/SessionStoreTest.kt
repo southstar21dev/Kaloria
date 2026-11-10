@@ -59,28 +59,45 @@ class SessionStoreTest {
     fun `updateToken replaces only the token`() = runBlocking {
         store.save(session)
 
-        store.updateToken("new-token")
+        store.updateToken("user1", "new-token")
 
         assertEquals(session.copy(token = "new-token"), store.current())
     }
 
     @Test
-    fun `a token that can't be decrypted means signed out, not a crash`() = runBlocking {
+    fun `a token that can't be decrypted signs out for good, cursors included`() = runBlocking {
         store.save(session)
+        store.setCursor("user1", "foods", "2026-10-29 00:00:00.000Z")
         FakeAndroidKeyStore.keys.clear() // e.g. app data restored onto another phone
 
         val restored = SessionStore(ApplicationProvider.getApplicationContext<Context>())
 
         assertNull(restored.current())
-        // The encrypted token is still stored; only decrypting it fails.
-        assertTrue(restored.isSignedIn())
+        // Signed out everywhere, not just in the UI, so periodic sync isn't kept alive for nothing.
+        assertFalse(restored.isSignedIn())
+        assertNull(restored.cursor("foods"))
+        assertTrue(restored.syncInfo.first().lastError != null)
+        // The local data still belongs to that account.
+        assertEquals(SyncedAccount(session.serverUrl, session.userId, session.email), restored.syncedAccount())
     }
 
     @Test
-    fun `clear signs out and forgets cursors but keeps the server`() = runBlocking {
+    fun `signing in again starts the cursors over`() = runBlocking {
+        // Cursors left from an earlier sign-in (restored from another phone, or written by a sync
+        // that finished after sign-out) would make the next pull skip everything older.
         store.save(session)
-        store.setCursor("foods", "2026-10-29 00:00:00.000Z")
-        store.recordSuccess(123L)
+        store.setCursor("user1", "foods", "2026-10-29 00:00:00.000Z")
+
+        store.save(session.copy(token = "again"))
+
+        assertNull(store.cursor("foods"))
+    }
+
+    @Test
+    fun `clear signs out and forgets cursors but keeps the server and the data's account`() = runBlocking {
+        store.save(session)
+        store.setCursor("user1", "foods", "2026-10-29 00:00:00.000Z")
+        store.recordSuccess("user1", 123L)
 
         store.clear()
 
@@ -89,12 +106,39 @@ class SessionStoreTest {
         assertNull(store.cursor("foods"))
         assertEquals(SyncInfo(), store.syncInfo.first())
         assertEquals(session.serverUrl, store.serverUrl.first())
+        assertEquals(SyncedAccount(session.serverUrl, session.userId, session.email), store.syncedAccount())
+    }
+
+    @Test
+    fun `an expired session signs out but keeps saying why`() = runBlocking {
+        store.save(session)
+
+        store.expire("user1", "Session expired. Sign in again.")
+
+        assertNull(store.current())
+        assertEquals(SyncInfo(lastError = "Session expired. Sign in again."), store.syncInfo.first())
+    }
+
+    @Test
+    fun `a sync finishing after sign-out leaves nothing behind`() = runBlocking {
+        store.save(session)
+        store.clear()
+
+        store.updateToken("user1", "late-token")
+        store.setCursor("user1", "foods", "late")
+        store.recordSuccess("user1", 5L)
+        store.expire("user1", "late error")
+
+        assertFalse(store.isSignedIn())
+        assertNull(store.cursor("foods"))
+        assertEquals(SyncInfo(), store.syncInfo.first())
     }
 
     @Test
     fun `cursors are kept per collection`() = runBlocking {
-        store.setCursor("foods", "a")
-        store.setCursor("log_entries", "b")
+        store.save(session)
+        store.setCursor("user1", "foods", "a")
+        store.setCursor("user1", "log_entries", "b")
 
         assertEquals("a", store.cursor("foods"))
         assertEquals("b", store.cursor("log_entries"))
@@ -103,29 +147,31 @@ class SessionStoreTest {
 
     @Test
     fun `recordError then recordSuccess, and save clears the error`() = runBlocking {
-        store.recordError("offline")
+        store.save(session)
+        store.recordError("user1", "offline")
         assertEquals(SyncInfo(lastError = "offline"), store.syncInfo.first())
 
-        store.recordSuccess(10L)
-        assertEquals(SyncInfo(lastSyncAt = 10L), store.syncInfo.first())
+        store.recordSuccess("user1", 10L, rejected = 2, stale = 1)
+        assertEquals(SyncInfo(lastSyncAt = 10L, rejected = 2, stale = 1), store.syncInfo.first())
 
-        store.recordError("401")
+        store.recordError("user1", "401")
         store.save(session)
         assertEquals(SyncInfo(lastSyncAt = 10L), store.syncInfo.first())
     }
 
     @Test
     fun `syncInfo doesn't re-emit for cursor writes`() = runBlocking {
+        store.save(session)
         val seen = CopyOnWriteArrayList<SyncInfo>()
         val collector = launch(Dispatchers.Default) { store.syncInfo.collect { seen += it } }
         withTimeout(5_000) { while (seen.isEmpty()) kotlinx.coroutines.delay(10) }
 
-        store.setCursor("foods", "c1")
-        store.setCursor("foods", "c2")
-        store.updateToken("t")
+        store.setCursor("user1", "foods", "c1")
+        store.setCursor("user1", "foods", "c2")
+        store.updateToken("user1", "t")
         // Give the collector time to see those writes, if it were going to.
         kotlinx.coroutines.delay(300)
-        store.recordSuccess(99L)
+        store.recordSuccess("user1", 99L)
         withTimeout(5_000) { while (seen.size < 2) kotlinx.coroutines.delay(10) }
         kotlinx.coroutines.delay(100)
         collector.cancel()

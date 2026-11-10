@@ -44,6 +44,10 @@ class SyncScheduler @Inject constructor(@ApplicationContext context: Context) : 
 
     fun cancelAll() {
         workManager.cancelUniqueWork(ONE_TIME)
+        cancelPeriodic()
+    }
+
+    fun cancelPeriodic() {
         workManager.cancelUniqueWork(PERIODIC)
     }
 

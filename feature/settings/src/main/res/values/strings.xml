@@ -15,6 +15,7 @@
     <string name="settings_goals_note">Your own numbers; Kaloria doesn\'t estimate them.</string>
     <string name="settings_goals_macro_kcal">" Macros add up to %1$s kcal."</string>
     <string name="settings_goals_save">Save goals</string>
+    <string name="settings_goals_zero">A goal can\'t be 0. Leave it empty for no target.</string>
     <string name="settings_goal_not_set">Not set</string>
     <string name="settings_unit_kcal">kcal</string>
     <string name="settings_unit_grams">g</string>
@@ -49,4 +50,33 @@
         <item quantity="one">%1$d day ago</item>
         <item quantity="other">%1$d days ago</item>
     </plurals>
+    <string name="settings_account_server_placeholder">https://pb.example.com</string>
+    <string name="settings_account_server_hint">The address of your own PocketBase server.</string>
+    <plurals name="settings_account_synced_with_rejected">
+        <item quantity="one">Synced %1$s, but %2$d change was refused by the server</item>
+        <item quantity="other">Synced %1$s, but %2$d changes were refused by the server</item>
+    </plurals>
+    <plurals name="settings_account_stale">
+        <item quantity="one">%1$d edit made here was older than the server\'s copy, so the server\'s copy was kept.</item>
+        <item quantity="other">%1$d edits made here were older than the server\'s copies, so the server\'s copies were kept.</item>
+    </plurals>
+
+    <!-- Sign-in errors -->
+    <string name="settings_account_error_no_server">Enter the address of your PocketBase server.</string>
+    <string name="settings_account_error_invalid_address">That doesn\'t look like a server address.</string>
+    <string name="settings_account_error_https_only">This version of Kaloria only connects over HTTPS. Use an https:// address.</string>
+    <string name="settings_account_error_unreachable">Can\'t reach the server. Check the address and your connection.</string>
+    <string name="settings_account_error_not_pocketbase">Something answered at that address, but it isn\'t a PocketBase server.</string>
+    <string name="settings_account_error_credentials">Wrong email or password.</string>
+    <string name="settings_account_error_too_many">Too many sign-in attempts. Wait a minute and try again.</string>
+    <string name="settings_account_error_server">The server ran into a problem. Try again later.</string>
+
+    <!-- Signing in to a different account while this phone holds another account's data -->
+    <string name="settings_account_switch_title">Sign in as %1$s?</string>
+    <string name="settings_account_switch_body">This phone holds data synced with %1$s. Upload it to %2$s as well, or replace it with %2$s\'s data?</string>
+    <string name="settings_account_switch_body_unknown">This phone holds data synced with another account. Upload it to %1$s as well, or replace it with %1$s\'s data?</string>
+    <string name="settings_account_switch_replace_note">Replacing deletes this phone\'s foods, diary, weigh-ins and goals, including changes that haven\'t synced yet.</string>
+    <string name="settings_account_switch_upload">Upload this phone\'s data</string>
+    <string name="settings_account_switch_replace">Replace this phone\'s data</string>
+    <string name="settings_account_switch_cancel">Cancel</string>
 </resources>

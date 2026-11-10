@@ -66,6 +66,12 @@ data class WeightEntryEntity(
     override val dirty: Boolean = true,
 ) : SyncedEntity
 
+/**
+ * [WeightEntryEntity.healthConnectId] of an import deleted because it disappeared from Health Connect,
+ * not by the user. Unlike a user's deletion, it comes back if the reading shows up again.
+ */
+const val VANISHED_FROM_HEALTH_CONNECT = "vanished"
+
 fun WeightEntryEntity.asExternalModel() = WeightEntry(id, kilograms, Instant.ofEpochMilli(loggedAt), fromHealth = healthConnectId != null)
 
 /** A single row; its [id] becomes the user's one record in the PocketBase `goals` collection. */

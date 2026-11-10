@@ -43,7 +43,10 @@ class BarcodeScanViewModel @AssistedInject constructor(
         fun create(key: BarcodeScanKey): BarcodeScanViewModel
     }
 
-    private val day = LocalDate.ofEpochDay(key.epochDay)
+    private val fixedDay = key.epochDay?.let(LocalDate::ofEpochDay)
+
+    /** The day to log onto, worked out each time it's needed. */
+    private fun day(): LocalDate = fixedDay ?: LocalDate.now(clock)
 
     var state by mutableStateOf<BarcodeState>(BarcodeState.Scanning)
         private set
@@ -66,11 +69,17 @@ class BarcodeScanViewModel @AssistedInject constructor(
 
     fun saveServings(foodId: String, servings: List<dev.southstar21.kaloria.core.model.Serving>) = viewModelScope.launch { foods.saveServings(foodId, servings) }
 
-    fun rescan() {
+    /**
+     * Back to scanning. Returns the code just handled, for the camera to ignore while it's still in
+     * view; null after a failed lookup, whose "Try again" means that same code again.
+     */
+    fun rescan(): String? {
+        val handled = (state as? BarcodeState.Found)?.takeUnless { it.result == BarcodeResult.Offline || it.result == BarcodeResult.Unavailable }?.code
         state = BarcodeState.Scanning
+        return handled
     }
 
-    fun defaultTime(): LocalTime = if (day == LocalDate.now(clock)) LocalTime.now(clock).withSecond(0).withNano(0) else LocalTime.NOON
+    fun defaultTime(): LocalTime = if (day() == LocalDate.now(clock)) LocalTime.now(clock).withSecond(0).withNano(0) else LocalTime.NOON
 
     fun log(amount: Double, time: LocalTime) {
         if (logging) return
@@ -84,7 +93,7 @@ class BarcodeScanViewModel @AssistedInject constructor(
                     is BarcodeResult.Online -> catalog.import(found.food)
                     else -> return@launch
                 }
-                diary.logFood(food, amount, day.atTime(time).atZone(clock.zone).toInstant())
+                diary.logFood(food, amount, day().atTime(time).atZone(clock.zone).toInstant())
                 doneChannel.send(food.name)
                 sent = true
             } finally {

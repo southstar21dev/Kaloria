@@ -10,6 +10,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.southstar21.kaloria.core.database.KaloriaDatabase
 import dev.southstar21.kaloria.core.database.dao.FoodDao
 import dev.southstar21.kaloria.core.database.dao.GoalsDao
+import dev.southstar21.kaloria.core.database.dao.LocalDataDao
 import dev.southstar21.kaloria.core.database.dao.LogEntryDao
 import dev.southstar21.kaloria.core.database.dao.WeightDao
 import javax.inject.Singleton
@@ -28,4 +29,6 @@ internal object DatabaseModule {
     @Provides fun weightDao(db: KaloriaDatabase): WeightDao = db.weightDao()
 
     @Provides fun goalsDao(db: KaloriaDatabase): GoalsDao = db.goalsDao()
+
+    @Provides fun localDataDao(db: KaloriaDatabase): LocalDataDao = db.localDataDao()
 }

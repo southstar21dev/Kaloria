@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.glance.appwidget.updateAll
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.southstar21.kaloria.core.data.widget.WidgetUpdater
+import java.time.Clock
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -18,7 +19,10 @@ import kotlinx.coroutines.launch
  * by watching the database, so nothing stays subscribed while the app is idle.
  */
 @Singleton
-internal class GlanceWidgetUpdater @Inject constructor(@ApplicationContext private val context: Context) : WidgetUpdater {
+internal class GlanceWidgetUpdater @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val clock: Clock,
+) : WidgetUpdater {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var pending: Job? = null
 
@@ -27,6 +31,8 @@ internal class GlanceWidgetUpdater @Inject constructor(@ApplicationContext priva
         pending?.cancel()
         pending = scope.launch {
             delay(DEBOUNCE_MS) // a burst of writes (e.g. a sync) redraws once
+            // A write just after midnight, before the alarm, shows on the new day.
+            WidgetDay.refresh(clock)
             runCatching { KaloriaWidget().updateAll(context) }
         }
     }

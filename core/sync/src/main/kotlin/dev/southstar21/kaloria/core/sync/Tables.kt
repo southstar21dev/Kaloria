@@ -33,8 +33,7 @@ internal abstract class RoomTable<E : SyncedEntity>(
     private val dao: SyncDao<E>,
 ) : SyncTable<E> {
     override suspend fun dirty() = dao.dirty()
-    override suspend fun byIds(ids: List<String>) = dao.byIds(ids)
-    override suspend fun saveRemote(rows: List<E>) = dao.upsertAll(rows)
+    override suspend fun saveIfNewer(rows: List<E>) = if (rows.isEmpty()) 0 else dao.upsertIfNewer(rows, { it.id }, { it.updatedAt })
     override suspend fun markClean(rows: List<E>) {
         if (rows.isNotEmpty()) dao.markCleanAll(rows.associate { it.id to it.updatedAt })
     }

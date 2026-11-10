@@ -64,7 +64,7 @@ class ProgressViewModel @Inject constructor(
     /** The range shown; change it with [setRange], which also refreshes the steps. */
     val range: StateFlow<ProgressRange> = _range.asStateFlow()
 
-    /** The current day, refreshed on resume, so the range and the streak move on past midnight. */
+    /** The current day, checked on resume and as the clock ticks, so the range and the streak move on past midnight. */
     private val today = MutableStateFlow(LocalDate.now(clock))
 
     /** The streak doesn't depend on the range, so switching range doesn't re-read every logged day. */
@@ -101,6 +101,9 @@ class ProgressViewModel @Inject constructor(
     /** True while a Health Connect weight sync is running. */
     val syncingWeight: StateFlow<Boolean> = weightSync.syncing
 
+    /** True when the last weight sync with Health Connect failed; the next one tries again. */
+    val weightSyncFailed: StateFlow<Boolean> = weightSync.failed
+
     val healthPermissions get() = weightSync.permissions + stepsRepository.permissions
     fun healthPermissionContract() = weightSync.permissionContract()
 
@@ -128,6 +131,11 @@ class ProgressViewModel @Inject constructor(
             val perDay = stepsRepository.stepsPerDay(from, end)
             steps = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(end) }.map { perDay[it] }.toList()
         }.also { stepsJob = it }
+    }
+
+    /** Called as the clock ticks while the screen is in front: at midnight, the range moves on to the new day. */
+    fun onTimeChange() {
+        if (LocalDate.now(clock) != today.value) refreshSteps()
     }
 
     fun syncWeights() = viewModelScope.launch { weightSync.sync() }

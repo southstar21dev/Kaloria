@@ -129,30 +129,41 @@ fun LabelScanRoute(
     }
     val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
-        viewModel.read {
-            val source = ImageDecoder.createSource(context.contentResolver, uri)
-            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                val scale = MAX_SIDE.toFloat() / maxOf(info.size.width, info.size.height)
-                if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
-            }
-        }
+        viewModel.read(
+            load = {
+                val source = ImageDecoder.createSource(context.contentResolver, uri)
+                ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    val scale = MAX_SIDE.toFloat() / maxOf(info.size.width, info.size.height)
+                    if (scale < 1f) decoder.setTargetSize((info.size.width * scale).toInt(), (info.size.height * scale).toInt())
+                }
+            },
+        )
     }
+
+    // From the tap until the photo arrives: a second tap would only queue a photo that's thrown away.
+    var capturing by remember { mutableStateOf(false) }
 
     LabelScanScreen(
         viewModel = viewModel,
         capture = capture,
         analysis = analysis,
+        capturing = capturing,
         onBack = onBack,
         onShutter = {
+            capturing = true
             capture.takePicture(
                 ContextCompat.getMainExecutor(context),
                 object : ImageCapture.OnImageCapturedCallback() {
                     override fun onCaptureSuccess(image: ImageProxy) {
-                        if (!viewModel.read { image.use { it.toUprightBitmap() } }) image.close()
+                        capturing = false
+                        if (!viewModel.read(load = { image.use { it.toUprightBitmap() } }, onDropped = image::close)) image.close()
                     }
 
-                    override fun onError(exception: ImageCaptureException) = viewModel.captureFailed()
+                    override fun onError(exception: ImageCaptureException) {
+                        capturing = false
+                        viewModel.captureFailed()
+                    }
                 },
             )
         },
@@ -173,7 +184,10 @@ private fun ImageProxy.toUprightBitmap(): Bitmap {
         postScale(scale, scale)
         postRotate(imageInfo.rotationDegrees.toFloat())
     }
-    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    val upright = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    // About 48 MB at 12 MP: let it go now rather than hold two such copies through the read.
+    if (upright !== bitmap) bitmap.recycle()
+    return upright
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -182,6 +196,7 @@ private fun LabelScanScreen(
     viewModel: LabelScanViewModel,
     capture: ImageCapture,
     analysis: ImageAnalysis,
+    capturing: Boolean,
     onBack: () -> Unit,
     onShutter: () -> Unit,
     onPickPhoto: () -> Unit,
@@ -201,7 +216,9 @@ private fun LabelScanScreen(
     // Nothing can be captured behind the live camera, so controls use dark tinted, non-refracting glass.
     GlassOverCamera {
         Box(Modifier.fillMaxSize()) {
-            CameraPreview(useCases = remember(capture, analysis) { listOf(capture, analysis) })
+            // Until the camera is bound (and while access is denied) there's nothing to photograph.
+            var cameraReady by remember { mutableStateOf(false) }
+            CameraPreview(useCases = remember(capture, analysis) { listOf(capture, analysis) }, onCamera = { cameraReady = true })
 
             // The resting frame until a table is found; then the table's own outline takes over.
             val live = viewModel.live
@@ -273,7 +290,7 @@ private fun LabelScanScreen(
                     IconButton(onClick = onPickPhoto, modifier = Modifier.size(52.dp).glass(CircleShape)) {
                         Icon(Icons.Rounded.PhotoLibrary, stringResource(R.string.label_scan_choose_photo))
                     }
-                    Shutter(enabled = !reading, onClick = shoot)
+                    Shutter(enabled = !reading && !capturing && cameraReady, onClick = shoot)
                     // Balances the photo button, so the shutter sits in the middle.
                     Spacer(Modifier.size(52.dp))
                 }
@@ -287,7 +304,7 @@ private fun LabelScanScreen(
         AlertDialog(
             onDismissRequest = viewModel::dismissError,
             title = { Text(stringResource(R.string.label_scan_failed_title)) },
-            text = { Text(it.message) },
+            text = { Text(stringResource(it.message)) },
             confirmButton = { TextButton(onClick = viewModel::dismissError) { Text(stringResource(R.string.label_scan_try_again)) } },
         )
     }

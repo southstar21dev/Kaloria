@@ -1,5 +1,6 @@
 package dev.southstar21.kaloria.feature.foods.editor
 
+import dev.southstar21.kaloria.core.model.Micronutrient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -58,5 +59,44 @@ class FoodFormTest {
         val errors = FoodForm().errors
         assertTrue(errors.name)
         assertTrue(errors.energy)
+    }
+
+    @Test
+    fun `servings need an amount above zero`() {
+        assertTrue(valid.copy(servings = listOf(ServingInput("slice", "0"))).errors.servings)
+        assertTrue(valid.copy(servings = listOf(ServingInput("slice", ""))).errors.servings)
+        assertTrue(valid.copy(servings = listOf(ServingInput("slice", "20000"))).errors.servings)
+        assertFalse(valid.copy(servings = listOf(ServingInput("slice", "28"), ServingInput())).errors.servings)
+    }
+
+    @Test
+    fun `a micronutrient over 100 g per 100 is impossible`() {
+        assertTrue(valid.copy(micros = mapOf(Micronutrient.Sodium to "150000")).errors.implausible)
+        assertTrue(valid.copy(micros = mapOf(Micronutrient.TransFat to "101")).errors.implausible)
+        assertFalse(valid.copy(micros = mapOf(Micronutrient.Sodium to "680", Micronutrient.VitaminD to "2.5")).errors.implausible)
+    }
+
+    @Test
+    fun `text longer than sync allows blocks the save`() {
+        assertTrue(valid.copy(name = "a".repeat(201)).errors.tooLong)
+        assertTrue(valid.copy(brand = "b".repeat(201)).errors.tooLong)
+        assertTrue(valid.copy(barcode = "1".repeat(33)).errors.tooLong)
+        assertTrue(valid.copy(name = "a".repeat(201)).errors.any)
+        assertFalse(valid.copy(name = "a".repeat(200), brand = "b".repeat(200), barcode = "1".repeat(32)).errors.tooLong)
+    }
+
+    @Test
+    fun `typing stops at the limit and a paste is cut there`() {
+        assertEquals("a".repeat(199) + "b", ("a".repeat(199) + "bc").capped("a".repeat(199), 200))
+        assertEquals("abc", "abc".capped("ab", 200))
+        // An emoji cut in half is dropped whole.
+        assertEquals("a".repeat(199), ("a".repeat(199) + "\uD83C\uDF4E").capped("a".repeat(199), 200))
+    }
+
+    @Test
+    fun `prefilled text over the limit can only get shorter`() {
+        val long = "a".repeat(250)
+        assertEquals(long.dropLast(1), long.dropLast(1).capped(long, 200))
+        assertEquals(long, (long + "x").capped(long, 200))
     }
 }

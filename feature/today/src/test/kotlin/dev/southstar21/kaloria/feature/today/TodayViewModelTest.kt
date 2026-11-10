@@ -189,6 +189,53 @@ class TodayViewModelTest {
     }
 
     @Test
+    fun `midnight with the app open moves from the old today to the new one`() = runTest {
+        awaitState()
+        clock.now = local("2026-10-31T00:00")
+
+        viewModel.onTimeChange()
+
+        val state = awaitState { it.date == today.plusDays(1) }
+        assertEquals(today.plusDays(1), state.today)
+        assertEquals(emptyList<LogEntry>(), state.entries)
+        assertEquals(today.plusDays(1), steps.requestedDays.last())
+    }
+
+    @Test
+    fun `midnight with the app open leaves an earlier day the user picked alone`() = runTest {
+        viewModel.previousDay()
+        clock.now = local("2026-10-31T00:00")
+
+        viewModel.onTimeChange()
+
+        val state = awaitState { it.today == today.plusDays(1) }
+        assertEquals(yesterday, state.date)
+    }
+
+    @Test
+    fun `ticks within the same day don't ask Health Connect again`() = runTest {
+        viewModel.refreshSteps().join()
+        val calls = steps.requestedDays.size
+        clock.now = local("2026-10-30T23:59")
+
+        viewModel.onTimeChange()
+
+        assertEquals(calls, steps.requestedDays.size)
+        assertEquals(today, viewModel.selectedDate.value)
+    }
+
+    @Test
+    fun `going to today after midnight goes to the new day`() = runTest {
+        viewModel.previousDay()
+        clock.now = local("2026-10-31T00:05")
+
+        viewModel.goToToday()
+
+        val state = awaitState { it.date == today.plusDays(1) }
+        assertEquals(today.plusDays(1), state.today)
+    }
+
+    @Test
     fun `updating an entry keeps its day and changes amount and time`() = runTest {
         val original = diary.entries.value.first { it.id == "dinner-yesterday" }
 

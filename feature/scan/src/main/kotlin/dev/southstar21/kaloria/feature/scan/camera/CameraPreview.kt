@@ -53,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -97,14 +98,30 @@ fun CameraPreview(
 ) {
     val context = LocalContext.current
     fun hasPermission() = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    fun rationale() = context.findActivity()?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.CAMERA) } == true
     var granted by remember { mutableStateOf(hasPermission()) }
     // Saved, so turning the phone doesn't ask again straight away.
     var asked by rememberSaveable { mutableStateOf(false) }
+    var blocked by rememberSaveable { mutableStateOf(false) }
+    // Denials that left no rationale behind: a dismissed prompt (back, or a tap outside) looks the
+    // same as one the system no longer shows at all.
+    var silentDenials by rememberSaveable { mutableIntStateOf(0) }
+    var rationaleBefore by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         granted = it
         asked = true
+        val rationaleAfter = rationale()
+        silentDenials = if (!it && !rationaleAfter) silentDenials + 1 else 0
+        // Denied for good: refused once already and now the rationale is gone ("don't ask again",
+        // or twice), or silent twice in a row, which a prompt that never showed is. Once silent is
+        // just a dismissed prompt, so "Allow" is offered again.
+        blocked = !it && !rationaleAfter && (rationaleBefore || silentDenials >= 2)
     }
-    LaunchedEffect(Unit) { if (!granted && !asked) launcher.launch(Manifest.permission.CAMERA) }
+    fun request() {
+        rationaleBefore = rationale()
+        launcher.launch(Manifest.permission.CAMERA)
+    }
+    LaunchedEffect(Unit) { if (!granted && !asked) request() }
     // Picks up access granted (or revoked) in the system settings while the app was in the background.
     LifecycleResumeEffect(Unit) {
         granted = hasPermission()
@@ -112,14 +129,11 @@ fun CameraPreview(
     }
 
     if (!granted) {
-        // Denied for good ("don't ask again", or twice): the system won't show the prompt any more,
-        // so the only way back is the app's settings page.
-        val activity = context.findActivity()
-        val blocked = asked && activity != null && !ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.CAMERA)
+        // Blocked: the system won't show the prompt any more, so the only way back is the app's settings page.
         PermissionCard(
             blocked = blocked,
             asked = asked,
-            onAllow = { launcher.launch(Manifest.permission.CAMERA) },
+            onAllow = ::request,
             onOpenSettings = {
                 context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
             },

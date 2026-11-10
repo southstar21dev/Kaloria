@@ -1,4 +1,6 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- PluralsCandidate is ignored on strings whose number counts a unit ("kcal") or a range that is
+         never 1, so the English reads right without plurals. -->
     <string name="today_greeting_morning">Good morning</string>
     <string name="today_greeting_afternoon">Good afternoon</string>
     <string name="today_greeting_evening">Good evening</string>
@@ -42,9 +44,11 @@
     <string name="today_expanded">Expanded</string>
     <string name="today_collapsed">Collapsed</string>
     <string name="today_micronutrients_title">Micronutrients</string>
-    <string name="today_micronutrients_tracked">%1$d tracked</string>
+    <string name="today_micronutrients_tracked" tools:ignore="PluralsCandidate">%1$d tracked</string>
     <string name="today_micronutrients_empty">No micronutrient data in today\'s foods.</string>
     <string name="today_micro_sugars">Sugars</string>
     <string name="today_micro_saturated_fat">Saturated fat</string>
     <string name="today_micro_salt">Salt</string>
+    <string name="today_micro_of_target">%1$s / %2$s</string>
+    <string name="today_macro_of_goal">%1$s/%2$s</string>
 </resources>

@@ -101,7 +101,7 @@ private fun MacroRow(label: String, value: Double, target: Int?) {
         Row {
             Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             Text(
-                target?.let { "${value.roundToDisplay()}/$it" } ?: stringResource(R.string.today_grams, value.roundToDisplay()),
+                target?.let { stringResource(R.string.today_macro_of_goal, value.roundToDisplay(), it.grouped()) } ?: stringResource(R.string.today_grams, value.roundToDisplay()),
                 style = MaterialTheme.typography.labelMedium,
                 color = if (over) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
             )

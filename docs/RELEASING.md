@@ -6,10 +6,11 @@ GitHub builds, signs and publishes every release. Local builds are for developme
 
 | Push to | CI (`ci.yml`) | Release (`release.yml`) |
 |---|---|---|
-| `dev`, PRs | Build, lint, detekt, formatting, R8 build | Nothing |
-| `master` | Same | Release, e.g. `v1.2.0` |
+| `dev`, PRs | Unit tests, build, lint, detekt, formatting, R8 build | Nothing |
+| `master` | Same | Unit tests, then the release, e.g. `v1.2.0` |
 
-semantic-release reads the Conventional Commits since the last tag. If any warrant a release
+The release workflow runs the unit tests first and stops if any fail. semantic-release then reads
+the Conventional Commits since the last tag. If any warrant a release
 (`fix:`, `perf:`, `feat:`, breaking changes), it runs `scripts/build-release.sh`, which builds
 both APKs signed with the release key, then tags the commit and publishes a GitHub Release with the
 changelog and the APKs. Otherwise nothing is published.
@@ -52,8 +53,10 @@ This makes two APKs in `app/build/outputs/apk/release/`:
 
 Almost all of the size is ML Kit's native OCR and barcode engines, which ship once per CPU type.
 
-`versionCode` orders releases after their candidates: `1.2.3-rc.4` is 1020304 and `1.2.3` is
-1020399, so every published build installs as an update over the previous one.
+`versionCode` is `major * 1000000 + minor * 10000 + patch * 100 + 99`, so `1.2.3` is 1020399 and
+every published build installs as an update over the previous one. The trailing 99 is left over from
+release candidates (`-rc.N` took N there); nothing produces those any more, but the scheme stays so
+existing version codes keep increasing.
 
 ## Signing
 

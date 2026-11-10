@@ -8,10 +8,12 @@ import dev.southstar21.kaloria.core.model.RemoteFood
 import dev.southstar21.kaloria.core.model.Serving
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLPathPart
 import java.io.IOException
 import javax.inject.Inject
@@ -39,13 +41,20 @@ class OpenFoodFactsDataSource @Inject constructor(private val client: HttpClient
      * A dropped connection, a timeout or a busy server is retried three times before it counts as a failure.
      */
     suspend fun product(barcode: String): RemoteFood? {
-        val response: JsonObject = retryingTransient {
+        val response = productResponse(barcode) ?: return null
+        return response.takeIf { it["status"]?.jsonPrimitive?.intOrNull == 1 }?.get("product")?.jsonObject?.let(::parseProduct)
+    }
+
+    /** The lookup's answer; null when Open Food Facts doesn't know the product. */
+    private suspend fun productResponse(barcode: String): JsonObject? = try {
+        retryingTransient {
             client.get("https://world.openfoodfacts.org/api/v2/product/${barcode.encodeURLPathPart()}") {
                 parameter("fields", FIELDS)
-            }.body()
+            }.body<JsonObject>()
         }
-        if (response["status"]?.jsonPrimitive?.intOrNull != 1) return null
-        return response["product"]?.jsonObject?.let(::parseProduct)
+    } catch (e: ClientRequestException) {
+        // An unknown product is a 404 (with a `status: 0` body), not an outage.
+        if (e.response.status == HttpStatusCode.NotFound) null else throw e
     }
 
     /** Products matching [query]; transient failures are retried like [product]'s. */
@@ -166,10 +175,14 @@ internal suspend fun <T> retryingTransient(delaysMillis: List<Long> = listOf(400
     return block()
 }
 
-/** Network hiccups and an overloaded or rate-limiting server; a 404 or bad request is not worth retrying. */
+/**
+ * Network hiccups and an overloaded server. A 404 or bad request is not worth retrying, and neither is
+ * a 429: retrying within seconds only extends the throttling, and search sends a new request with
+ * the next keystroke anyway.
+ */
 private fun Exception.isTransient(): Boolean = when (this) {
     is HttpRequestTimeoutException, is IOException -> true
-    is ResponseException -> response.status.value == 429 || response.status.value >= 500
+    is ResponseException -> response.status.value >= 500
     else -> false
 }
 

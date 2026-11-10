@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- PluralsCandidate is ignored on strings whose number counts a unit ("kcal") or a range that is
+         never 1, so the English reads right without plurals. -->
     <!-- Progress screen -->
     <string name="progress_title">Progress</string>
     <string name="progress_streak_start">Log a meal to start a streak</string>
     <string name="progress_streak_days">%1$d-day streak</string>
     <string name="progress_streak_keep">%1$d-day streak, log today to keep it</string>
     <string name="progress_calories_title">Calories</string>
-    <string name="progress_days_logged">%1$d of %2$d days logged</string>
+    <string name="progress_days_logged" tools:ignore="PluralsCandidate">%1$d of %2$d days logged</string>
     <string name="progress_kcal_per_day">kcal a day</string>
     <string name="progress_calories_chart_description">Calories per day, average %1$s kcal</string>
     <string name="progress_steps_title">Steps</string>
@@ -20,9 +22,12 @@
     <string name="progress_sugars">Sugars</string>
     <string name="progress_saturated_fat">Saturated fat</string>
     <string name="progress_salt">Salt</string>
+    <string name="progress_micro_of_target">%1$s / %2$s</string>
     <string name="progress_delete_weight_title">Delete weigh-in?</string>
-    <string name="progress_delete_weight_from_health">%1$.1f kg on %2$s came from Samsung Health. It\'s hidden in Kaloria; delete it in Samsung Health to remove it everywhere.</string>
-    <string name="progress_delete_weight_local">%1$.1f kg on %2$s. It\'s also removed from Samsung Health.</string>
+    <!-- The app weigh-ins are shared with, kept out of the sentences so translations don't change it. -->
+    <string name="progress_health_app" translatable="false">Samsung Health</string>
+    <string name="progress_delete_weight_from_health">%1$.1f kg on %2$s came from %3$s. It\'s hidden in Kaloria; delete it in %3$s to remove it everywhere.</string>
+    <string name="progress_delete_weight_local">%1$.1f kg on %2$s. It\'s also removed from %3$s.</string>
     <string name="progress_delete">Delete</string>
     <string name="progress_cancel">Cancel</string>
     <string name="progress_save">Save</string>
@@ -43,7 +48,7 @@
         <item quantity="one">%1$d day logged</item>
         <item quantity="other">%1$d days logged</item>
     </plurals>
-    <string name="progress_activity_description">%1$d of the last %2$d weeks\' days logged</string>
+    <string name="progress_activity_description" tools:ignore="PluralsCandidate">%1$d of the last %2$d weeks\' days logged</string>
 
     <!-- Weight tile -->
     <string name="progress_weight_title">Weight</string>
@@ -52,15 +57,16 @@
     <string name="progress_weight_latest">Latest weigh-in</string>
     <string name="progress_weight_log">Log</string>
     <string name="progress_weight_chart_description">Weight from %1$.1f to %2$.1f kg</string>
-    <string name="progress_weight_from_health">" · from Samsung Health"</string>
+    <string name="progress_weight_from_health">" · from %1$s"</string>
     <string name="progress_weight_from_kaloria">" · logged in Kaloria"</string>
-    <string name="progress_health_synced">Synced with Samsung Health</string>
-    <string name="progress_health_connect_prompt">Sync weight with Samsung Health</string>
-    <string name="progress_health_update">Update Health Connect to sync with Samsung Health</string>
+    <string name="progress_health_synced">Synced with %1$s</string>
+    <string name="progress_health_connect_prompt">Sync weight with %1$s</string>
+    <string name="progress_health_update">Update Health Connect to sync with %1$s</string>
     <string name="progress_health_connect">Connect</string>
     <string name="progress_weight_dialog_title">Log weight</string>
     <string name="progress_weight_field">Weight</string>
     <string name="progress_weight_unit">" kg"</string>
     <string name="progress_kg">kg</string>
-    <string name="progress_health_syncing">Syncing with Samsung Health</string>
+    <string name="progress_health_syncing">Syncing with %1$s</string>
+    <string name="progress_health_sync_failed">Couldn\'t sync with Health Connect. It tries again next time.</string>
 </resources>

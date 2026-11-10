@@ -163,7 +163,9 @@ fun BarcodeScanRoute(
         onRescan = {
             // ML Kit only ever zooms in; back to 1x so the next product can be held close again.
             camera?.cameraControl?.setZoomRatio(1f)
-            viewModel.rescan()
+            // The product is usually still in front of the camera; without this its sheet or card
+            // would come straight back.
+            viewModel.rescan()?.let(analyzer::ignoreUntilGone)
         },
         defaultTime = viewModel::defaultTime,
         onLog = viewModel::log,

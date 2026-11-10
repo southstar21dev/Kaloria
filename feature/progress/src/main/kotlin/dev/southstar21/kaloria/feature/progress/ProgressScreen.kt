@@ -47,6 +47,8 @@ import dev.southstar21.kaloria.core.designsystem.liquid.LiquidTabs
 import dev.southstar21.kaloria.core.model.HealthAccess
 import dev.southstar21.kaloria.core.model.Micronutrient
 import dev.southstar21.kaloria.core.ui.LocalClock
+import dev.southstar21.kaloria.core.ui.TimeChangeEffect
+import dev.southstar21.kaloria.core.ui.displayName
 import dev.southstar21.kaloria.core.ui.gramsText
 import dev.southstar21.kaloria.core.ui.kcalText
 
@@ -58,11 +60,14 @@ fun ProgressRoute(viewModel: ProgressViewModel = hiltViewModel()) {
         viewModel.refresh()
         onPauseOrDispose { }
     }
+    // Midnight with the app open moves the range and the streak on, not only the next resume.
+    TimeChangeEffect(viewModel::onTimeChange)
     ProgressScreen(
         state = state,
         steps = viewModel.steps,
         weightAccess = viewModel.weightAccess.collectAsStateWithLifecycle().value,
         syncingWeight = viewModel.syncingWeight.collectAsStateWithLifecycle().value,
+        weightSyncFailed = viewModel.weightSyncFailed.collectAsStateWithLifecycle().value,
         onRange = viewModel::setRange,
         onLogWeight = viewModel::logWeight,
         onDeleteWeight = viewModel::deleteWeight,
@@ -80,6 +85,7 @@ internal fun ProgressScreen(
     onLogWeight: (Double) -> Unit,
     onDeleteWeight: (String) -> Unit,
     onConnectHealth: () -> Unit,
+    weightSyncFailed: Boolean = false,
 ) {
     val dock = LocalDockPadding.current
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -139,6 +145,7 @@ internal fun ProgressScreen(
                 state = state,
                 access = weightAccess,
                 syncing = syncingWeight,
+                syncFailed = weightSyncFailed,
                 onLog = { loggingWeight = true },
                 onConnect = onConnectHealth,
                 onPick = { deleting = it.id },
@@ -210,8 +217,9 @@ internal fun ProgressScreen(
                     s.average.salt?.let { add(stringResource(R.string.progress_salt) to it.gramsText()) }
                     Micronutrient.entries.forEach { m ->
                         s.average.micros[m]?.let { value ->
-                            val target = state.goals.micros[m]?.let { " / ${it.gramsText(m.unit.symbol)}" }.orEmpty()
-                            add(m.label to value.gramsText(m.unit.symbol) + target)
+                            val amount = value.gramsText(m.unit.symbol)
+                            val text = state.goals.micros[m]?.let { stringResource(R.string.progress_micro_of_target, amount, it.gramsText(m.unit.symbol)) } ?: amount
+                            add(m.displayName() to text)
                         }
                     }
                 }
@@ -246,12 +254,14 @@ internal fun ProgressScreen(
                             R.string.progress_delete_weight_from_health,
                             weight.kilograms,
                             weight.loggedAt.atZone(zone).toLocalDate().format(formats.shortDate),
+                            stringResource(R.string.progress_health_app),
                         )
                     } else {
                         stringResource(
                             R.string.progress_delete_weight_local,
                             weight.kilograms,
                             weight.loggedAt.atZone(zone).toLocalDate().format(formats.shortDate),
+                            stringResource(R.string.progress_health_app),
                         )
                     },
                 )

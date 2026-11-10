@@ -2,6 +2,7 @@ package dev.southstar21.kaloria.feature.scan.label
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,6 +23,7 @@ import dev.southstar21.kaloria.core.scanner.label.ScanDraftStore
 import dev.southstar21.kaloria.feature.scan.LabelScanKey
 import dev.southstar21.kaloria.feature.scan.R
 import java.io.File
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -31,7 +33,9 @@ import kotlinx.coroutines.withContext
 sealed interface LabelScanState {
     data object Ready : LabelScanState
     data object Reading : LabelScanState
-    data class Failed(val message: String) : LabelScanState
+
+    /** Why, as a message the user can act on; never an exception's own text. */
+    data class Failed(@StringRes val message: Int) : LabelScanState
 }
 
 @HiltViewModel(assistedFactory = LabelScanViewModel.Factory::class)
@@ -86,32 +90,42 @@ class LabelScanViewModel @AssistedInject constructor(
     /**
      * Reads the label in the image [load] produces. Decoding a photo takes long enough to drop
      * frames, so [load] runs off the main thread. Returns false (without calling [load]) while a
-     * read is already in progress.
+     * read is already in progress. Once it returns true, either [load] runs or, if the screen is
+     * gone before it can, [onDropped] does, so a camera frame behind [load] is always released.
      */
-    fun read(load: () -> Bitmap): Boolean {
+    fun read(load: () -> Bitmap, onDropped: () -> Unit = {}): Boolean {
         if (state == LabelScanState.Reading) return false
         state = LabelScanState.Reading
         analyzer.paused = true
         live = null
-        viewModelScope.launch {
-            runCatching {
-                val bitmap = withContext(Dispatchers.Default) { load() }
-                val label = scanner.flatten(bitmap)
-                if (label.flattened) flattened = label.image
-                val extraction = scanner.read(label, forceRules = rulesOnly)
-                if (!extraction.isUsable) error(context.getString(R.string.label_scan_no_table))
-                // The review shows what was read: the flat table when there is one.
-                val photo = withContext(Dispatchers.IO) { savePhoto(label.image) }
-                drafts.put(LabelDraft(extraction, photo, key.barcode))
-            }.onSuccess { id ->
-                state = LabelScanState.Ready
-                flattened = null
-                analyzer.paused = false
-                draftChannel.send(id)
-            }.onFailure {
-                state = LabelScanState.Failed(it.message ?: context.getString(R.string.label_scan_failed_message))
-                flattened = null
-                analyzer.paused = false
+        // Started even if the scope is cancelled meanwhile, so the finally block always runs.
+        viewModelScope.launch(start = CoroutineStart.ATOMIC) {
+            var loaded = false
+            try {
+                runCatching {
+                    val bitmap = withContext(Dispatchers.Default) {
+                        loaded = true
+                        load()
+                    }
+                    val label = scanner.flatten(bitmap)
+                    if (label.flattened) flattened = label.image
+                    val extraction = scanner.read(label, forceRules = rulesOnly)
+                    if (!extraction.isUsable) throw NoTableFound()
+                    // The review shows what was read: the flat table when there is one.
+                    val photo = withContext(Dispatchers.IO) { savePhoto(label.image) }
+                    drafts.put(LabelDraft(extraction, photo, key.barcode))
+                }.onSuccess { id ->
+                    state = LabelScanState.Ready
+                    flattened = null
+                    analyzer.paused = false
+                    draftChannel.send(id)
+                }.onFailure {
+                    state = LabelScanState.Failed(if (it is NoTableFound) R.string.label_scan_no_table else R.string.label_scan_failed_message)
+                    flattened = null
+                    analyzer.paused = false
+                }
+            } finally {
+                if (!loaded) onDropped()
             }
         }
         return true
@@ -119,7 +133,7 @@ class LabelScanViewModel @AssistedInject constructor(
 
     /** The camera couldn't take the photo; said so rather than leaving the shutter doing nothing. */
     fun captureFailed() {
-        if (state != LabelScanState.Reading) state = LabelScanState.Failed(context.getString(R.string.label_scan_capture_failed))
+        if (state != LabelScanState.Reading) state = LabelScanState.Failed(R.string.label_scan_capture_failed)
     }
 
     fun dismissError() {
@@ -133,3 +147,6 @@ class LabelScanViewModel @AssistedInject constructor(
         }
     }
 }
+
+/** The photo was read, but no nutrition table in it. */
+private class NoTableFound : Exception()

@@ -4,6 +4,7 @@ plugins {
 }
 
 dependencies {
+    implementation(libs.androidx.core.ktx)
     api(projects.core.model)
     implementation(projects.core.database)
     implementation(projects.core.network)

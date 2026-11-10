@@ -37,9 +37,10 @@ fun Project.semanticVersion(): String {
 }
 
 /**
- * 1.2.3 becomes 1020399 and its release candidate 1.2.3-rc.4 becomes 1020304, so a release always
- * outranks its candidates and updates install in order. Minor and patch must stay below 100, and
- * candidates below 99.
+ * 1.2.3 becomes 1020399, so releases install in order. Minor and patch must stay below 100.
+ *
+ * The `-rc.N` form (1.2.3-rc.4 becomes 1020304) is no longer produced since the staging branch was
+ * dropped; it is still parsed so the scheme, and with it every existing version code, stays the same.
  */
 fun versionCodeOf(version: String): Int {
     val match = requireNotNull(Regex("""(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?""").matchEntire(version)) {

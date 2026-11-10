@@ -9,6 +9,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.AutoMigrationSpec
 import dev.southstar21.kaloria.core.database.dao.FoodDao
 import dev.southstar21.kaloria.core.database.dao.GoalsDao
+import dev.southstar21.kaloria.core.database.dao.LocalDataDao
 import dev.southstar21.kaloria.core.database.dao.LogEntryDao
 import dev.southstar21.kaloria.core.database.dao.WeightDao
 import dev.southstar21.kaloria.core.database.model.FoodEntity
@@ -32,6 +33,7 @@ abstract class KaloriaDatabase : RoomDatabase() {
     abstract fun logEntryDao(): LogEntryDao
     abstract fun weightDao(): WeightDao
     abstract fun goalsDao(): GoalsDao
+    abstract fun localDataDao(): LocalDataDao
 
     @DeleteTable(tableName = "water_entries")
     @DeleteColumn(tableName = "goals", columnName = "waterMl")

@@ -58,6 +58,7 @@ internal fun WeightTile(
     state: ProgressUiState,
     access: HealthAccess?,
     syncing: Boolean,
+    syncFailed: Boolean,
     onLog: () -> Unit,
     onConnect: () -> Unit,
     onPick: (WeightEntry) -> Unit,
@@ -111,7 +112,7 @@ internal fun WeightTile(
                 description = stringResource(R.string.progress_weight_chart_description, points.first().kilograms, points.last().kilograms),
             )
         }
-        HealthRow(access, syncing, onConnect)
+        HealthRow(access, syncing, syncFailed, onConnect)
         val recent = points.takeLast(3).reversed()
         if (recent.isNotEmpty()) {
             Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -121,7 +122,7 @@ internal fun WeightTile(
                             Text(w.kilograms.kgText(), style = MaterialTheme.typography.labelLarge)
                             Text(
                                 w.loggedAt.atZone(zone).toLocalDate().format(formats.shortDate) +
-                                    stringResource(if (w.fromHealth) R.string.progress_weight_from_health else R.string.progress_weight_from_kaloria),
+                                    if (w.fromHealth) stringResource(R.string.progress_weight_from_health, stringResource(R.string.progress_health_app)) else stringResource(R.string.progress_weight_from_kaloria),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -138,7 +139,7 @@ internal fun WeightTile(
  * It grows in rather than popping, and a sync in progress spins the icon instead of changing the text.
  */
 @Composable
-private fun HealthRow(access: HealthAccess?, syncing: Boolean, onConnect: () -> Unit) {
+private fun HealthRow(access: HealthAccess?, syncing: Boolean, failed: Boolean, onConnect: () -> Unit) {
     AnimatedVisibility(
         visible = access != null && access != HealthAccess.Unsupported,
         enter = expandVertically(spring(dampingRatio = 0.9f, stiffness = 380f)) + fadeIn(tween(240, delayMillis = 60)),
@@ -153,32 +154,43 @@ private fun HealthRow(access: HealthAccess?, syncing: Boolean, onConnect: () -> 
                 spin.animateTo(kotlin.math.ceil(spin.value / 360f) * 360f, spring(dampingRatio = 0.8f, stiffness = 300f))
             }
         }
-        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Rounded.Sync,
-                if (syncing) stringResource(R.string.progress_health_syncing) else null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = -spin.value },
-            )
-            Spacer(Modifier.width(8.dp))
-            AnimatedContent(
-                targetState = access,
-                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
-                modifier = Modifier.weight(1f),
-                label = "health",
-            ) { state ->
-                Text(
-                    when (state) {
-                        HealthAccess.Granted -> stringResource(R.string.progress_health_synced)
-                        HealthAccess.NeedsPermission -> stringResource(R.string.progress_health_connect_prompt)
-                        else -> stringResource(R.string.progress_health_update)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Column {
+            Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.Sync,
+                    if (syncing) stringResource(R.string.progress_health_syncing, stringResource(R.string.progress_health_app)) else null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = -spin.value },
                 )
+                Spacer(Modifier.width(8.dp))
+                AnimatedContent(
+                    targetState = access,
+                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
+                    modifier = Modifier.weight(1f),
+                    label = "health",
+                ) { state ->
+                    Text(
+                        when (state) {
+                            HealthAccess.Granted -> stringResource(R.string.progress_health_synced, stringResource(R.string.progress_health_app))
+                            HealthAccess.NeedsPermission -> stringResource(R.string.progress_health_connect_prompt, stringResource(R.string.progress_health_app))
+                            else -> stringResource(R.string.progress_health_update, stringResource(R.string.progress_health_app))
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                AnimatedVisibility(access == HealthAccess.NeedsPermission, enter = fadeIn(), exit = fadeOut()) {
+                    FilledTonalButton(onClick = onConnect) { Text(stringResource(R.string.progress_health_connect)) }
+                }
             }
-            AnimatedVisibility(access == HealthAccess.NeedsPermission, enter = fadeIn(), exit = fadeOut()) {
-                FilledTonalButton(onClick = onConnect) { Text(stringResource(R.string.progress_health_connect)) }
+            // Only once a round has failed and none is running: the next one, on the next visit, tries again.
+            AnimatedVisibility(failed && !syncing && access == HealthAccess.Granted, enter = fadeIn(), exit = fadeOut()) {
+                Text(
+                    stringResource(R.string.progress_health_sync_failed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.padding(start = 26.dp, top = 4.dp),
+                )
             }
         }
     }

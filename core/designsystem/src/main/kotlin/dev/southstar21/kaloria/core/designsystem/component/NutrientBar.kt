@@ -19,7 +19,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.southstar21.kaloria.core.designsystem.R
 
 /**
  * Label, "value / target unit" and a slim bar. Without a target only the value is shown. Going
@@ -46,7 +48,11 @@ fun NutrientBar(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
             Text(
-                text = if (target != null) "${value.roundToDisplay()} / $target $unit" else "${value.roundToDisplay()} $unit",
+                text = if (target != null) {
+                    stringResource(R.string.nutrient_bar_value_of_target, value.roundToDisplay(), target.grouped(), unit)
+                } else {
+                    stringResource(R.string.nutrient_bar_value, value.roundToDisplay(), unit)
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = if (fraction > 1f) over else MaterialTheme.colorScheme.onSurfaceVariant,
             )

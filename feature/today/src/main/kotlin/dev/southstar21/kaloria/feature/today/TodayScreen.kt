@@ -46,22 +46,26 @@ import dev.southstar21.kaloria.core.model.LogEntry
 import dev.southstar21.kaloria.core.model.Serving
 import dev.southstar21.kaloria.core.ui.LocalClock
 import dev.southstar21.kaloria.core.ui.PortionSheet
+import dev.southstar21.kaloria.core.ui.TimeChangeEffect
 import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * @param onDayChange tells the app which day is shown, so the dock's add menu logs onto it.
+ * @param onDayChange tells the app which day is shown, so the dock's add menu logs onto it: null
+ *   while that's today, so an addition goes to whatever day it is when it's logged.
  * @param onOpenSettings the round button at the top right.
  */
 @Composable
-fun TodayRoute(onDayChange: (LocalDate) -> Unit, onOpenSettings: () -> Unit, viewModel: TodayViewModel = hiltViewModel()) {
+fun TodayRoute(onDayChange: (LocalDate?) -> Unit, onOpenSettings: () -> Unit, viewModel: TodayViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(state.date) { onDayChange(state.date) }
-    val stepsPermission = rememberLauncherForActivityResult(viewModel.stepsPermissionContract()) { viewModel.refreshSteps() }
+    LaunchedEffect(state.date, state.today) { onDayChange(state.date.takeIf { it != state.today }) }
+    val stepsPermission = rememberLauncherForActivityResult(viewModel.stepsPermissionContract) { viewModel.refreshSteps() }
     LifecycleResumeEffect(Unit) {
         viewModel.onResume()
         onPauseOrDispose { }
     }
+    // Midnight with the app open moves today on too, not only the next resume.
+    TimeChangeEffect(viewModel::onTimeChange)
     TodayScreen(
         state = state,
         greeting = stringResource(greetingFor(LocalTime.now(LocalClock.current))),
@@ -182,27 +186,31 @@ internal fun TodayScreen(
     }
 
     state.entries.firstOrNull { it.id == editing }?.let { entry ->
-        val servings by produceState(emptyList<Serving>(), entry.id) { value = servingsFor(entry) }
-        PortionSheet(
-            title = entry.foodName,
-            subtitle = entry.brand,
-            unit = entry.unit,
-            per100 = entry.nutrientsPer100,
-            servings = servings,
-            initialAmount = entry.amount,
-            initialTime = entry.loggedAt.atZone(zone).toLocalTime(),
-            confirmLabel = stringResource(R.string.today_save),
-            onConfirm = { amount, time ->
-                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                onUpdateEntry(entry, amount, time)
-                editing = null
-            },
-            onDismiss = { editing = null },
-            onDelete = {
-                onDeleteEntry(entry)
-                editing = null
-            },
-            onServingsChange = entry.foodId?.let { id -> { onSaveServings(id, it) } },
-        )
+        // The sheet opens once the food's servings are read: opened on an empty list, adding a
+        // serving would save just that one over the food's others.
+        val servings by produceState<List<Serving>?>(null, entry.id) { value = servingsFor(entry) }
+        servings?.let { loaded ->
+            PortionSheet(
+                title = entry.foodName,
+                subtitle = entry.brand,
+                unit = entry.unit,
+                per100 = entry.nutrientsPer100,
+                servings = loaded,
+                initialAmount = entry.amount,
+                initialTime = entry.loggedAt.atZone(zone).toLocalTime(),
+                confirmLabel = stringResource(R.string.today_save),
+                onConfirm = { amount, time ->
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onUpdateEntry(entry, amount, time)
+                    editing = null
+                },
+                onDismiss = { editing = null },
+                onDelete = {
+                    onDeleteEntry(entry)
+                    editing = null
+                },
+                onServingsChange = entry.foodId?.let { id -> { onSaveServings(id, it) } },
+            )
+        }
     }
 }

@@ -3,6 +3,8 @@ package dev.southstar21.kaloria.core.data.repository
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import app.cash.turbine.test
+import dev.southstar21.kaloria.core.data.di.TimeZoneMonitor
 import dev.southstar21.kaloria.core.data.sync.SyncRequester
 import dev.southstar21.kaloria.core.data.widget.WidgetUpdater
 import dev.southstar21.kaloria.core.database.KaloriaDatabase
@@ -14,6 +16,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -34,6 +37,7 @@ class OfflineFirstDiaryRepositoryTest {
         .build()
 
     private var syncRequests = 0
+    private val zones = MutableStateFlow(zone)
     private var widgetUpdates = 0
 
     private val repository = OfflineFirstDiaryRepository(
@@ -42,6 +46,7 @@ class OfflineFirstDiaryRepositoryTest {
         clock = clock,
         sync = SyncRequester { syncRequests++ },
         widget = WidgetUpdater { widgetUpdates++ },
+        zones = TimeZoneMonitor { zones },
     )
 
     @After fun close() = db.close()
@@ -92,6 +97,47 @@ class OfflineFirstDiaryRepositoryTest {
         assertEquals(listOf("late"), repository.entries(LocalDate.of(2026, 10, 29)).first().map { it.id })
         assertEquals(listOf("early"), repository.entries(LocalDate.of(2026, 10, 30)).first().map { it.id })
         assertEquals(listOf("late", "early"), repository.entries(LocalDate.of(2026, 10, 29), LocalDate.of(2026, 10, 30)).first().map { it.id })
+    }
+
+    @Test
+    fun `an open day follows a time zone change`() = runTest {
+        repository.saveEntry(entry("late", local("2026-10-29T23:30"))) // 22:30 UTC on the 29th
+
+        repository.entries(LocalDate.of(2026, 10, 29)).test {
+            assertEquals(listOf("late"), awaitItem().map { it.id })
+            zones.value = ZoneId.of("Asia/Tokyo") // 07:30 on the 30th there
+            assertEquals(emptyList<LogEntry>(), awaitItem())
+            zones.value = ZoneId.of("UTC")
+            assertEquals(listOf("late"), awaitItem().map { it.id })
+        }
+        repository.loggedDays().test {
+            assertEquals(setOf(LocalDate.of(2026, 10, 29)), awaitItem())
+            zones.value = ZoneId.of("Asia/Tokyo")
+            assertEquals(setOf(LocalDate.of(2026, 10, 30)), awaitItem())
+        }
+    }
+
+    @Test
+    fun `saving cuts text to the server's limits`() = runTest {
+        repository.saveEntry(entry("a", local("2026-10-30T08:00")).copy(foodName = "n".repeat(250), brand = "b".repeat(201), note = "x".repeat(600)))
+
+        val row = db.logEntryDao().get("a")!!
+        assertEquals(200, row.foodName.length)
+        assertEquals(200, row.brand?.length)
+        assertEquals(500, row.note?.length)
+    }
+
+    @Test
+    fun `edits and deletes are stamped after a newer pulled version`() = runTest {
+        val pulled = now.toEpochMilli() + 60_000 // written by a device whose clock is a minute ahead
+        repository.saveEntry(entry("a", local("2026-10-30T08:00")))
+        db.logEntryDao().upsertAll(listOf(db.logEntryDao().get("a")!!.copy(updatedAt = pulled, dirty = false)))
+
+        repository.saveEntry(entry("a", local("2026-10-30T09:00")))
+        assertEquals(pulled + 1, db.logEntryDao().get("a")!!.updatedAt)
+
+        repository.deleteEntry("a")
+        assertEquals(pulled + 2, db.logEntryDao().get("a")!!.updatedAt)
     }
 
     @Test
