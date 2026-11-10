@@ -7,8 +7,11 @@ plugins {
 }
 
 // The USDA key comes from local.properties (usda.apiKey) or the USDA_API_KEY env var in CI, and
-// never from the repo. DEMO_KEY works but is limited to ~30 requests an hour.
-val usdaApiKey: String = localProperty("usda.apiKey") ?: System.getenv("USDA_API_KEY") ?: "DEMO_KEY"
+// never from the repo. DEMO_KEY works but is limited to ~30 requests an hour. Blank counts as unset:
+// GitHub Actions passes a missing secret as an empty string, and USDA answers an empty key with 403.
+val usdaApiKey: String = localProperty("usda.apiKey").takeUnless { it.isNullOrBlank() }
+    ?: System.getenv("USDA_API_KEY").takeUnless { it.isNullOrBlank() }
+    ?: "DEMO_KEY"
 
 android {
     buildFeatures.buildConfig = true

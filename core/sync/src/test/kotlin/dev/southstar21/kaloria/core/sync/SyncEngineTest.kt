@@ -3,125 +3,21 @@ package dev.southstar21.kaloria.core.sync
 import dev.southstar21.kaloria.core.datastore.Session
 import dev.southstar21.kaloria.core.network.PocketBaseClient
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.MockRequestHandleScope
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.HttpRequestData
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.TextContent
-import io.ktor.http.headersOf
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
-import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** A row with an amount; stands in for any synced table. */
-private data class Row(val id: String, val amount: Int, val updatedAt: Long, val deleted: Boolean = false, val dirty: Boolean = true)
-
-private class FakeTable : SyncTable<Row> {
-    val rows = linkedMapOf<String, Row>()
-    override val collection = "water_entries"
-    override suspend fun dirty() = rows.values.filter { it.dirty }
-    override suspend fun byIds(ids: List<String>) = ids.mapNotNull(rows::get)
-    override suspend fun saveRemote(rows: List<Row>) = rows.forEach { this.rows[it.id] = it }
-    override suspend fun markClean(rows: List<Row>) = rows.forEach { row ->
-        this.rows[row.id]?.takeIf { it.updatedAt == row.updatedAt }?.let { this.rows[row.id] = it.copy(dirty = false) }
-    }
-    override fun id(row: Row) = row.id
-    override fun updatedAt(row: Row) = row.updatedAt
-    override fun toJson(row: Row) = buildJsonObject {
-        put("millilitres", row.amount)
-        put("clientUpdatedAt", row.updatedAt)
-        put("deleted", row.deleted)
-    }
-    override fun fromJson(json: JsonObject) = Row(
-        id = json["id"]!!.jsonPrimitive.content,
-        amount = json["millilitres"]!!.jsonPrimitive.int,
-        updatedAt = json["clientUpdatedAt"]!!.jsonPrimitive.long,
-        deleted = json["deleted"]?.jsonPrimitive?.content == "true",
-        dirty = false,
-    )
-
-    fun write(id: String, amount: Int, at: Long) {
-        rows[id] = Row(id, amount, at)
-    }
-}
-
-/** Just enough of PocketBase: PATCH/POST/list with `updated` cursors and the 409 LWW hook. */
-private class FakePocketBase {
-    val records = linkedMapOf<String, JsonObject>()
-    val methods = mutableListOf<HttpMethod>()
-    private var clock = 0
-
-    private fun timestamp() = "2026-10-29 00:00:%02d.000Z".format(++clock)
-
-    fun handle(scope: MockRequestHandleScope, request: HttpRequestData) = with(scope) {
-        val segments = request.url.encodedPath.split('/').filter { it.isNotEmpty() }
-        val id = segments.getOrNull(4)
-        fun body() = Json.parseToJsonElement((request.body as TextContent).text).jsonObject
-        fun json(text: String, status: HttpStatusCode = HttpStatusCode.OK) = respond(text, status, headersOf(HttpHeaders.ContentType, "application/json"))
-        methods += request.method
-        when {
-            request.method == HttpMethod.Patch -> {
-                val existing = records[id] ?: return@with json("""{"status":404}""", HttpStatusCode.NotFound)
-                val incoming = body()
-                if (incoming["clientUpdatedAt"]!!.jsonPrimitive.long < existing["clientUpdatedAt"]!!.jsonPrimitive.long) {
-                    return@with json("""{"status":409}""", HttpStatusCode.Conflict)
-                }
-                records[id!!] = JsonObject(existing + incoming + ("updated" to JsonPrimitive(timestamp())))
-                json("{}")
-            }
-
-            request.method == HttpMethod.Post -> {
-                val incoming = body()
-                val newId = incoming["id"]!!.jsonPrimitive.content
-                // Like PocketBase: ids must be 15 chars of [a-z0-9] and not taken.
-                if (newId in records || !Regex("[a-z0-9]{15}").matches(newId)) return@with json("""{"status":400}""", HttpStatusCode.BadRequest)
-                records[newId] = JsonObject(incoming + ("updated" to JsonPrimitive(timestamp())))
-                json("{}")
-            }
-
-            else -> {
-                val since = request.url.parameters["filter"]?.substringAfter("'")?.substringBefore("'")
-                val items = records.values.filter { since == null || it["updated"]!!.jsonPrimitive.content >= since }
-                    .sortedBy { it["updated"]!!.jsonPrimitive.content }
-                json("""{"page":1,"items":${Json.encodeToString(kotlinx.serialization.json.JsonArray(items))}}""")
-            }
-        }
-    }
-}
-
-private class MemoryCursors : CursorStore {
-    val map = mutableMapOf<String, String>()
-    override suspend fun cursor(collection: String) = map[collection]
-    override suspend fun setCursor(collection: String, value: String) {
-        map[collection] = value
-    }
-}
-
 class SyncEngineTest {
     private val server = FakePocketBase()
-    private val http = HttpClient(MockEngine { server.handle(this, it) }) {
-        install(ContentNegotiation) { json() }
-        expectSuccess = true
-    }
+    private val http = server.client()
     private val session = Session("http://pb", "owner123456789a", "me@example.com", "token")
 
-    private fun device() = FakeTable().let { table -> table to SyncEngine(PocketBaseClient(http), MemoryCursors(), listOf(table)) }
+    private fun device(cursors: MemoryCursors = MemoryCursors(), client: HttpClient = http) = FakeTable().let { table -> table to SyncEngine(PocketBaseClient(client), cursors, listOf(table)) }
 
     @Test
     fun `dirty rows are pushed with the owner and then clean`() = runTest {
@@ -220,5 +116,104 @@ class SyncEngineTest {
         val report = tabletSync.sync(session)
         assertEquals(1, report.pushed)
         assertEquals(400, server.records["fffffffffffffff"]!!["millilitres"]!!.jsonPrimitive.int)
+    }
+
+    @Test
+    fun `a first pull over several pages gets every record, even one that changes meanwhile`() = runTest {
+        repeat(450) { server.write(id(it), it, at = 1_000) }
+        // Another device edits a record from the first page while the second is being read: it
+        // moves to the end of the list. Paging by number would then skip a record.
+        server.afterPage = { page -> if (page == 1) server.write(id(10), 999, at = 2_000) }
+        val (phone, phoneSync) = device()
+
+        phoneSync.sync(session)
+
+        assertEquals(450, phone.rows.size)
+        assertEquals(999, phone.rows.getValue(id(10)).amount)
+    }
+
+    @Test
+    fun `records sharing a timestamp across a page boundary are all pulled`() = runTest {
+        server.frozenClock = true
+        repeat(250) { server.write(id(it), it, at = 1_000) }
+        server.frozenClock = false
+        val (phone, phoneSync) = device()
+
+        phoneSync.sync(session)
+
+        assertEquals(250, phone.rows.size)
+    }
+
+    @Test
+    fun `an edit refused as older is replaced even when the cursor has passed the server copy`() = runTest {
+        val (tablet, tabletSync) = device()
+        tablet.write(id(1), 500, at = 2_000)
+        tabletSync.sync(session)
+        val (phone, phoneSync) = device()
+        phoneSync.sync(session)
+        // More changes elsewhere move the phone's cursor well past the record.
+        repeat(5) { server.write(id(100 + it), it, at = 3_000) }
+        phoneSync.sync(session)
+
+        // The phone's clock is behind: its edit is stamped before the copy it edits.
+        phone.write(id(1), 330, at = 1_500)
+        val report = phoneSync.sync(session)
+
+        assertEquals(1, report.rejectedAsStale)
+        assertEquals(500, phone.rows.getValue(id(1)).amount)
+        assertFalse(phone.rows.getValue(id(1)).dirty)
+        assertFalse(phoneSync.hasPending())
+    }
+
+    @Test
+    fun `rows that fail are left for the next run instead of every round`() = runTest {
+        val (table, engine) = device()
+        table.write("hc:not-a-valid-id", 80, at = 1_000)
+        table.write(id(1), 250, at = 1_000)
+
+        val report = engine.syncUntilSettled(session, maxRounds = 3)
+
+        assertEquals(1, report.rejected)
+        assertEquals(1, report.pushed)
+        // One attempt for the refused row (create, then update) and one pull: a single round.
+        assertEquals(1, server.methods.count { it == HttpMethod.Patch })
+        assertEquals(1, server.methods.count { it == HttpMethod.Get })
+        assertTrue(table.rows.getValue("hc:not-a-valid-id").dirty)
+    }
+
+    @Test
+    fun `a row written while a run is going is pushed in its next round`() = runTest {
+        val (table, engine) = device()
+        table.write("hc:not-a-valid-id", 80, at = 1_000)
+        var edited = false
+        server.afterPage = {
+            if (!edited) {
+                edited = true
+                table.write(id(2), 300, at = 2_000)
+            }
+        }
+
+        val report = engine.syncUntilSettled(session, maxRounds = 3)
+
+        assertEquals(1, report.pushed)
+        assertFalse(table.rows.getValue(id(2)).dirty)
+    }
+
+    @Test
+    fun `after switching to another server every row is uploaded again`() = runTest {
+        val (phone, phoneSync) = device()
+        repeat(3) { phone.write(id(it), it, at = 1_000) }
+        phoneSync.sync(session)
+        assertTrue(phone.rows.values.none { it.dirty })
+
+        // Same account on a fresh server: the sign-in marks everything dirty and starts the cursors over.
+        val newServer = FakePocketBase()
+        phone.markAllDirty()
+        val moved = SyncEngine(PocketBaseClient(newServer.client()), MemoryCursors(), listOf(phone))
+        val report = moved.sync(session.copy(serverUrl = "http://pb2"))
+
+        assertEquals(3, report.pushed)
+        assertEquals(setOf(id(0), id(1), id(2)), newServer.records.keys)
+        assertTrue(phone.rows.values.none { it.dirty })
     }
 }

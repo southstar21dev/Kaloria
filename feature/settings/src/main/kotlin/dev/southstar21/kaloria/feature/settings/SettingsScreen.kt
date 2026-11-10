@@ -79,6 +79,8 @@ fun SettingsRoute(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMod
                 onSignIn = viewModel::signIn,
                 onSignOut = viewModel::signOut,
                 onSyncNow = viewModel::syncNow,
+                onResolveSwitch = viewModel::resolveSwitch,
+                onCancelSwitch = viewModel::cancelSwitch,
             )
         },
         onEditGoals = viewModel::editGoals,
@@ -144,8 +146,16 @@ internal fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 8.dp),
                 )
+                if (!goals.valid) {
+                    Text(
+                        stringResource(R.string.settings_goals_zero),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
+                }
                 AnimatedVisibility(goals.changed) {
-                    Button(onClick = onSaveGoals, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.settings_goals_save)) }
+                    Button(onClick = onSaveGoals, enabled = goals.valid, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.settings_goals_save)) }
                 }
             }
         }

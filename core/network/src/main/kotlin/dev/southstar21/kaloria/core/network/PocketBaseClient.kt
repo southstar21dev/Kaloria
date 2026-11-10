@@ -1,6 +1,7 @@
 package dev.southstar21.kaloria.core.network
 
 import io.ktor.client.HttpClient
+import io.ktor.client.call.NoTransformationFoundException
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.get
@@ -13,10 +14,17 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.serialization.ContentConvertException
+import java.time.Duration
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import javax.inject.Inject
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 @Serializable
 data class PocketBaseAuth(val token: String, val record: PocketBaseUser)
@@ -35,6 +43,12 @@ class PocketBaseAuthException(message: String) : Exception(message)
 
 /** The server holds a newer version of the record (the last-write-wins hook answered 409). */
 class StaleRecordException : Exception("A newer version exists on the server")
+
+/**
+ * The answer wasn't the JSON PocketBase sends: e.g. a captive portal's or proxy's page. Usually
+ * passes, so it's worth trying again later.
+ */
+class UnexpectedResponseException(cause: Throwable) : Exception("Unexpected server response", cause)
 
 /** Minimal PocketBase REST client: password auth, change feed by `updated`, and upserts. */
 class PocketBaseClient @Inject constructor(private val client: HttpClient) {
@@ -56,27 +70,45 @@ class PocketBaseClient @Inject constructor(private val client: HttpClient) {
     /**
      * Every record in [collection] changed at or after [since] (PocketBase datetime, or null for
      * all), oldest first. `>=` rather than `>`: re-reading one record is harmless, missing one
-     * written in the same millisecond is not.
+     * written in the same millisecond is not. The cursor is also moved back by [OVERLAP], so a
+     * record stamped just before it but committed just after the last pull isn't missed.
+     *
+     * Pages follow on from the last record of the previous one (by `updated`, then `id`) rather than
+     * by page number: a record changing while the pages are read moves to the end of the list, which
+     * would shift every later record back a page and skip one.
      */
     suspend fun changesSince(baseUrl: String, token: String, collection: String, since: String?): List<JsonObject> {
         val all = mutableListOf<JsonObject>()
-        var page = 1
+        var after: Pair<String, String>? = null
         do {
+            val filter = after?.let { (updated, id) -> "(updated > '$updated' || (updated = '$updated' && id > '$id'))" }
+                ?: since?.let { "updated >= '${pocketBaseTimeMinus(it, OVERLAP)}'" }
             val result: PocketBaseList = authCall {
                 client.get("${baseUrl.trimEnd('/')}/api/collections/$collection/records") {
                     header(HttpHeaders.Authorization, token)
-                    if (since != null) parameter("filter", "updated >= '$since'")
+                    if (filter != null) parameter("filter", filter)
                     parameter("sort", "updated,id")
                     parameter("perPage", PAGE_SIZE)
-                    parameter("page", page)
                     // Counting every match on every page is the slowest part of a list; a short page is the end.
                     parameter("skipTotal", true)
                 }.body()
             }
             all += result.items
-            page++
-        } while (result.items.size >= PAGE_SIZE)
+            val last = result.items.lastOrNull()
+            after = last?.let { (it.text("updated") ?: return@let null) to (it.text("id") ?: return@let null) }
+        } while (result.items.size >= PAGE_SIZE && after != null)
         return all
+    }
+
+    /** The record [id], or null if the server has none this account may see. */
+    suspend fun record(baseUrl: String, token: String, collection: String, id: String): JsonObject? = try {
+        authCall {
+            client.get("${baseUrl.trimEnd('/')}/api/collections/$collection/records/$id") {
+                header(HttpHeaders.Authorization, token)
+            }.body()
+        }
+    } catch (e: ClientRequestException) {
+        if (e.response.status == HttpStatusCode.NotFound) null else throw e
     }
 
     /**
@@ -130,22 +162,51 @@ class PocketBaseClient @Inject constructor(private val client: HttpClient) {
         }
     }
 
-    suspend fun isReachable(baseUrl: String): Boolean = runCatching {
-        client.get("${baseUrl.trimEnd('/')}/api/health")
-        true
-    }.onFailure { android.util.Log.w("PocketBase", "health check failed for $baseUrl", it) }.getOrDefault(false)
-
-    private suspend inline fun <T> authCall(block: () -> T): T = try {
-        block()
-    } catch (e: ClientRequestException) {
-        if (e.response.status == HttpStatusCode.Unauthorized) throw PocketBaseAuthException("Session expired. Sign in again.")
-        if (e.response.status == HttpStatusCode.BadRequest && e.response.call.request.url.encodedPath.endsWith("auth-with-password")) {
-            throw PocketBaseAuthException("Wrong email or password.")
-        }
-        throw e
+    /**
+     * Throws unless [baseUrl] answers like a PocketBase server: an IOException when it can't be
+     * reached, [UnexpectedResponseException] or a ResponseException when something else answers.
+     */
+    suspend fun checkHealth(baseUrl: String) {
+        val health: JsonObject = parsing { client.get("${baseUrl.trimEnd('/')}/api/health").body() }
+        if (health["code"] == null && health["message"] == null) throw UnexpectedResponseException(IllegalStateException("Not a PocketBase health response"))
     }
+
+    private suspend inline fun <T> authCall(block: () -> T): T = parsing {
+        try {
+            block()
+        } catch (e: ClientRequestException) {
+            if (e.response.status == HttpStatusCode.Unauthorized) throw PocketBaseAuthException("Session expired. Sign in again.")
+            if (e.response.status == HttpStatusCode.BadRequest && e.response.call.request.url.encodedPath.endsWith("auth-with-password")) {
+                throw PocketBaseAuthException("Wrong email or password.")
+            }
+            throw e
+        }
+    }
+
+    /** A body that isn't PocketBase's JSON (a captive portal, a proxy's error page) becomes [UnexpectedResponseException]. */
+    private suspend inline fun <T> parsing(block: () -> T): T = try {
+        block()
+    } catch (e: ContentConvertException) {
+        throw UnexpectedResponseException(e)
+    } catch (e: NoTransformationFoundException) {
+        throw UnexpectedResponseException(e)
+    } catch (e: SerializationException) {
+        throw UnexpectedResponseException(e)
+    }
+
+    private fun JsonObject.text(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull
 
     private companion object {
         const val PAGE_SIZE = 200
+        const val OVERLAP = 1_000L
     }
+}
+
+private val POCKETBASE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+
+/** A PocketBase datetime (`2026-10-29 08:15:00.123Z`) moved back by [millis]; unchanged if it isn't one. */
+internal fun pocketBaseTimeMinus(value: String, millis: Long): String = try {
+    POCKETBASE_TIME.format(LocalDateTime.parse(value.removeSuffix("Z"), POCKETBASE_TIME).minus(Duration.ofMillis(millis))) + "Z"
+} catch (_: DateTimeParseException) {
+    value
 }

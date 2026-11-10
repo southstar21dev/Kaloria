@@ -108,7 +108,10 @@ PB_ADMIN_EMAIL=you@example.com PB_ADMIN_PASSWORD='a strong password' docker comp
 # Admin UI: http://localhost:8090/_/  (create your user there; public sign-up is disabled)
 ```
 
-Then sign in under **Settings → Sync** with your server's address.
+Then sign in under **Settings → Sync** with your server's address; the app comes with none filled
+in. Release builds only connect over HTTPS, so a server on the internet needs a reverse proxy that
+terminates TLS (see the notes in [`docker-compose.yml`](server/docker-compose.yml)). Sign-in is
+limited to 5 password attempts a minute per client.
 
 <details>
 <summary>How sync works</summary>
@@ -119,6 +122,11 @@ Then sign in under **Settings → Sync** with your server's address.
 - Ids are generated on the device in PocketBase's format (15 × `[a-z0-9]`), so a row created
   offline keeps its id on the server.
 - Nutrients are stored as JSON, so "not on the label" stays distinct from zero.
+- The phone remembers which account its data was synced with. Signing in to the same account on
+  another server (or after the server was reset) uploads everything again. Signing in to a
+  different account asks first: upload this phone's data to it, or replace it with that account's.
+- A device whose clock is more than an hour ahead has its changes refused until the clock is right,
+  so it can't win every conflict.
 - Debug builds talk to `http://10.0.2.2:8090` (the emulator's view of your machine) by default; on a
   phone on your LAN, enter the machine's IP. Android 17 asks once for local network access.
 
@@ -178,6 +186,9 @@ usda.apiKey=YOUR_KEY                          # free at https://fdc.nal.usda.gov
 pocketbase.debugUrl=http://192.168.1.20:8090  # optional: debug builds' server
 ```
 
+Release builds suggest no sync server. To prefill yours in a build for your own phone, pass
+`-Pkaloria.serverUrl=https://pb.example.com` or set it in `~/.gradle/gradle.properties`.
+
 ```sh
 ./gradlew installDebug                     # dev.southstar21.kaloria.debug
 ./gradlew testDebugUnitTest                # unit tests, incl. label parser and sync engine
@@ -186,7 +197,8 @@ pocketbase.debugUrl=http://192.168.1.20:8090  # optional: debug builds' server
 ./gradlew spotlessApply detekt lintDebug   # format, static analysis, lint
 ```
 
-Every push runs CI: lint, detekt, formatting and an R8 release build.
+Every push runs CI: unit tests, lint, detekt, formatting and an R8 release build. Screenshot
+comparison stays manual.
 Pushes to `master` are released automatically by semantic-release with signed APKs.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branches and commit messages, and
 [docs/RELEASING.md](docs/RELEASING.md) for versions, signing and publishing.

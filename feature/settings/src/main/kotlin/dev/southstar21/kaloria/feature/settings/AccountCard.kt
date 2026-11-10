@@ -2,6 +2,7 @@ package dev.southstar21.kaloria.feature.settings
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -20,7 +21,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -33,12 +36,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -51,9 +57,20 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import dev.southstar21.kaloria.core.designsystem.component.ContentCard
 import dev.southstar21.kaloria.core.sync.AccountState
+import dev.southstar21.kaloria.core.sync.PendingSwitch
+import dev.southstar21.kaloria.core.sync.SignInException
+import dev.southstar21.kaloria.core.sync.SwitchChoice
 import dev.southstar21.kaloria.core.ui.LocalClock
+import java.net.Inet6Address
+import java.net.InetAddress
+import java.net.URI
+import java.net.URISyntaxException
+import java.net.UnknownHostException
 import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun AccountCard(
@@ -64,19 +81,37 @@ internal fun AccountCard(
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
     onSyncNow: () -> Unit,
+    onResolveSwitch: (SwitchChoice) -> Unit = {},
+    onCancelSwitch: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    // Android 17 blocks connections to private addresses unless the user allows local network access.
+    val scope = rememberCoroutineScope()
+    // Android 17 blocks connections to local network addresses unless the user allows local network access.
     val localNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) onSignIn() else onEdit { copy(errorRes = R.string.settings_account_local_network_denied) }
     }
     var showPassword by rememberSaveable { mutableStateOf(false) }
-    val canSignIn = !form.busy && form.email.isNotBlank() && form.password.isNotEmpty() && form.serverUrl.isNotBlank()
-    val signIn = {
-        val needsPermission = isLocalAddress(form.serverUrl) &&
-            ContextCompat.checkSelfPermission(context, LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
-        if (needsPermission) localNetwork.launch(LOCAL_NETWORK) else onSignIn()
+    var checkingAddress by remember { mutableStateOf(false) }
+    val canSignIn = !form.busy && !checkingAddress && form.email.isNotBlank() && form.password.isNotEmpty() && form.serverUrl.isNotBlank()
+    val signIn: () -> Unit = {
+        val asked = Build.VERSION.SDK_INT < LOCAL_NETWORK_SDK ||
+            ContextCompat.checkSelfPermission(context, LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED
+        if (asked) {
+            onSignIn()
+        } else {
+            val url = form.serverUrl
+            scope.launch {
+                checkingAddress = true
+                val local = try {
+                    needsLocalNetwork(url)
+                } finally {
+                    checkingAddress = false
+                }
+                if (local) localNetwork.launch(LOCAL_NETWORK) else onSignIn()
+            }
+        }
     }
+    state?.pendingSwitch?.let { SwitchAccountDialog(it, onResolveSwitch, onCancelSwitch) }
     ContentCard(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val session = state?.session
@@ -92,6 +127,13 @@ internal fun AccountCard(
                     value = form.serverUrl,
                     onValueChange = { v -> onEdit { copy(serverUrl = v) } },
                     label = { Text(stringResource(R.string.settings_account_server)) },
+                    placeholder = { Text(stringResource(R.string.settings_account_server_placeholder)) },
+                    // Release builds come with no server filled in: say what goes here.
+                    supportingText = if (form.serverUrl.isBlank()) {
+                        { Text(stringResource(R.string.settings_account_server_hint)) }
+                    } else {
+                        null
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
                     modifier = Modifier.fillMaxWidth(),
@@ -122,13 +164,13 @@ internal fun AccountCard(
                     keyboardActions = KeyboardActions(onDone = { if (canSignIn) signIn() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                (form.error ?: form.errorRes?.let { stringResource(it) })?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                form.errorRes?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
                 Button(
                     onClick = signIn,
                     enabled = canSignIn,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    if (form.busy) {
+                    if (form.busy || checkingAddress) {
                         val signingIn = stringResource(R.string.settings_account_signing_in)
                         CircularProgressIndicator(Modifier.size(18.dp).semantics { contentDescription = signingIn }, strokeWidth = 2.dp)
                     } else {
@@ -142,6 +184,8 @@ internal fun AccountCard(
                 )
             } else {
                 val failed = state.sync.lastError != null && !syncing
+                // Synced, but some changes didn't make it: not a clean success.
+                val incomplete = !failed && !syncing && state.sync.rejected > 0
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
@@ -159,18 +203,28 @@ internal fun AccountCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 Modifier.size(7.dp).clip(CircleShape)
-                                    .background(if (failed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary),
+                                    .background(if (failed || incomplete) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary),
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 when {
                                     syncing -> stringResource(R.string.settings_account_syncing)
+
                                     failed -> stringResource(R.string.settings_account_sync_failed, state.sync.lastError.orEmpty())
+
+                                    incomplete -> pluralStringResource(
+                                        R.plurals.settings_account_synced_with_rejected,
+                                        state.sync.rejected,
+                                        state.sync.lastSyncAt?.let { ago(context, it, LocalClock.current.instant()) }.orEmpty(),
+                                        state.sync.rejected,
+                                    )
+
                                     state.sync.lastSyncAt != null -> stringResource(R.string.settings_account_synced, ago(context, state.sync.lastSyncAt!!, LocalClock.current.instant()))
+
                                     else -> stringResource(R.string.settings_account_not_synced)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (failed) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (failed || incomplete) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -185,6 +239,13 @@ internal fun AccountCard(
                             Text(stringResource(R.string.settings_account_sync_now))
                         }
                     }
+                }
+                if (state.sync.stale > 0 && !syncing) {
+                    Text(
+                        pluralStringResource(R.plurals.settings_account_stale, state.sync.stale, state.sync.stale),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 HorizontalDivider(Modifier.padding(top = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -203,19 +264,80 @@ internal fun AccountCard(
     }
 }
 
+@Composable
+private fun SwitchAccountDialog(switch: PendingSwitch, onChoose: (SwitchChoice) -> Unit, onCancel: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.settings_account_switch_title, switch.toEmail)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    switch.fromEmail?.let { stringResource(R.string.settings_account_switch_body, it, switch.toEmail) }
+                        ?: stringResource(R.string.settings_account_switch_body_unknown, switch.toEmail),
+                )
+                Text(stringResource(R.string.settings_account_switch_replace_note), style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        // Three choices don't fit the usual confirm/dismiss pair; stacked, the longest label decides the width.
+        confirmButton = {
+            Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { onChoose(SwitchChoice.Upload) }) { Text(stringResource(R.string.settings_account_switch_upload)) }
+                TextButton(
+                    onClick = { onChoose(SwitchChoice.Replace) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text(stringResource(R.string.settings_account_switch_replace)) }
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.settings_account_switch_cancel)) }
+            }
+        },
+    )
+}
+
+internal val SignInException.Reason.messageRes: Int
+    get() = when (this) {
+        SignInException.Reason.NoServer -> R.string.settings_account_error_no_server
+        SignInException.Reason.InvalidAddress -> R.string.settings_account_error_invalid_address
+        SignInException.Reason.CleartextNotAllowed -> R.string.settings_account_error_https_only
+        SignInException.Reason.Unreachable -> R.string.settings_account_error_unreachable
+        SignInException.Reason.NotPocketBase -> R.string.settings_account_error_not_pocketbase
+        SignInException.Reason.WrongCredentials -> R.string.settings_account_error_credentials
+        SignInException.Reason.TooManyAttempts -> R.string.settings_account_error_too_many
+        SignInException.Reason.ServerError -> R.string.settings_account_error_server
+    }
+
 private const val LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
 
-/** localhost, the emulator's host alias, RFC 1918 ranges and mDNS names. */
-internal fun isLocalAddress(url: String): Boolean {
-    val host = url.trim().substringAfter("://").substringBefore('/').substringBefore(':').lowercase()
-    if (host == "localhost" || host.endsWith(".local")) return true
-    val octets = host.split('.').map { it.toIntOrNull() ?: return false }
-    if (octets.size != 4) return false
-    return octets[0] == 10 || octets[0] == 127 ||
-        (octets[0] == 192 && octets[1] == 168) ||
-        (octets[0] == 172 && octets[1] in 16..31) ||
-        (octets[0] == 169 && octets[1] == 254)
+/** Android 17, where ACCESS_LOCAL_NETWORK starts. Earlier versions refuse it without a prompt, as an unknown permission. */
+private const val LOCAL_NETWORK_SDK = 37
+
+/**
+ * Whether [url]'s server is on the local network, which Android 17 lets apps reach only with the
+ * user's permission. Names are resolved, so `nas.lan` or a public name pointing at a 192.168.x
+ * address count too; mDNS names and localhost are decided by name, as they may not resolve
+ * without the permission. Resolving can take a moment, so it's done off the main thread.
+ */
+internal suspend fun needsLocalNetwork(url: String): Boolean {
+    val host = hostOf(url) ?: return false
+    return host == "localhost" || host.endsWith(".local") || withContext(Dispatchers.IO) { resolvesToLocalNetwork(host) }
 }
+
+private fun resolvesToLocalNetwork(host: String): Boolean = try {
+    InetAddress.getAllByName(host).any(::isLocalNetwork)
+} catch (_: UnknownHostException) {
+    false // sign-in reports the server as unreachable
+} catch (_: SecurityException) {
+    false
+}
+
+/** The host of a server address as typed (scheme optional), without the brackets around an IPv6 literal. */
+internal fun hostOf(url: String): String? = try {
+    URI(url.trim().let { if ("://" in it) it else "https://$it" }).host?.removeSurrounding("[", "]")?.lowercase()?.ifEmpty { null }
+} catch (_: URISyntaxException) {
+    null
+}
+
+/** Loopback, private (RFC 1918), link-local, and IPv6 unique local (fc00::/7) addresses. */
+internal fun isLocalNetwork(address: InetAddress): Boolean = address.isLoopbackAddress || address.isSiteLocalAddress ||
+    address.isLinkLocalAddress || (address is Inet6Address && (address.address[0].toInt() and 0xFE) == 0xFC)
 
 private fun ago(context: Context, millis: Long, now: Instant): String {
     val d = Duration.between(Instant.ofEpochMilli(millis), now)
