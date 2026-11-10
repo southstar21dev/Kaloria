@@ -1,6 +1,7 @@
 package dev.southstar21.kaloria.core.scanner.label
 
 import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.ImagePart
@@ -116,8 +117,8 @@ class LabelScanner @Inject constructor(private val vision: LabelVision) {
     }
 
     private fun Bitmap.shrunkTo(longSide: Int): Bitmap {
-        val scale = longSide.toFloat() / maxOf(width, height)
-        return if (scale >= 1f) this else Bitmap.createScaledBitmap(this, (width * scale).toInt(), (height * scale).toInt(), true)
+        val factor = longSide.toFloat() / maxOf(width, height)
+        return if (factor >= 1f) this else scale((width * factor).toInt(), (height * factor).toInt())
     }
 
     private companion object {

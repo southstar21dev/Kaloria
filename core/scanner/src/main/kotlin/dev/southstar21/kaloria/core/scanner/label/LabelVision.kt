@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.util.Log
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withClip
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
@@ -73,7 +75,7 @@ class LabelVision @Inject constructor() {
         val rows = if (curved) CURVED_ROWS else 1
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         val matrix = Matrix()
-        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { flat ->
+        return createBitmap(width, height).also { flat ->
             val canvas = Canvas(flat)
             canvas.drawColor(Color.WHITE)
             for (j in 0 until rows) {
@@ -91,11 +93,8 @@ class LabelVision @Inject constructor() {
                     val t = v0 * height
                     val btm = v1 * height
                     if (!matrix.setPolyToPoly(floatArrayOf(a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y), 0, floatArrayOf(l, t, r, t, r, btm, l, btm), 0, 4)) continue
-                    canvas.save()
                     // A hair past the cell, so neighbouring cells meet without a seam.
-                    canvas.clipRect(l - 0.5f, t - 0.5f, r + 0.5f, btm + 0.5f)
-                    canvas.drawBitmap(photo, matrix, paint)
-                    canvas.restore()
+                    canvas.withClip(l - 0.5f, t - 0.5f, r + 0.5f, btm + 0.5f) { drawBitmap(photo, matrix, paint) }
                 }
             }
         }

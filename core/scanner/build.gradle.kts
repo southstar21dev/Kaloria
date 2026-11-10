@@ -5,6 +5,7 @@ plugins {
 }
 
 dependencies {
+    implementation(libs.androidx.core.ktx)
     api(projects.core.model)
     api(libs.androidx.camera.camera2)
     implementation(libs.mlkit.barcode)

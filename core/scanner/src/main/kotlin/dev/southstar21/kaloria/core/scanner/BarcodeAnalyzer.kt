@@ -56,19 +56,26 @@ class BarcodeAnalyzer(
         val rotation = proxy.imageInfo.rotationDegrees
         // ML Kit reports boxes in the upright image; turn the visible crop the same way up to match.
         val visible = upright(proxy.cropRect, rotation, proxy.width, proxy.height)
-        scanner.process(InputImage.fromMediaImage(image, rotation))
+        // A frame that can't be handed to ML Kit is closed here, or CameraX stops sending frames.
+        val task = runCatching { scanner.process(InputImage.fromMediaImage(image, rotation)) }.getOrElse {
+            proxy.close()
+            return
+        }
+        task
             .addOnSuccessListener { codes ->
                 // ML Kit reads the whole sensor frame, not just the part on screen, so a code beside
                 // the view (or a second one on the pack) could win. Only codes centred on screen
                 // count, and of those the one nearest the middle, where people hold what they mean.
-                val read = codes
-                    .filter { it.rawValue != null && it.boundingBox?.let { b -> visible.contains(b.centerX(), b.centerY()) } == true }
+                val inView = codes.filter { it.rawValue != null && it.boundingBox?.let { b -> visible.contains(b.centerX(), b.centerY()) } == true }
+                val read = inView
                     .minByOrNull { code ->
                         val b = code.boundingBox!!
                         val dx = (b.exactCenterX() - visible.exactCenterX()) / visible.width()
                         val dy = (b.exactCenterY() - visible.exactCenterY()) / visible.height()
                         dx * dx + dy * dy
                     }
+                    // A code already handled is neither framed nor read, as if it weren't there.
+                    ?.takeUnless { confirm.isIgnored(it.rawValue) }
                 onSighting(
                     read?.let { code ->
                         val box = code.boundingBox!!
@@ -81,12 +88,21 @@ class BarcodeAnalyzer(
                         )
                     },
                 )
-                read?.rawValue
-                    ?.takeIf { confirm.read(it, short = read.format == Barcode.FORMAT_EAN_8 || read.format == Barcode.FORMAT_UPC_E, nowNanos = System.nanoTime()) }
-                    ?.let(onBarcode)
+                val value = read?.rawValue
+                val short = read?.format == Barcode.FORMAT_EAN_8 || read?.format == Barcode.FORMAT_UPC_E
+                // Every analysed frame counts, a code read or not: frames without an ignored code are how it's known to be gone.
+                val confirmed = confirm.read(value, short, nowNanos = System.nanoTime(), inView = inView.mapNotNull { it.rawValue }.toSet())
+                if (confirmed && value != null) onBarcode(value)
             }
             .addOnCompleteListener { proxy.close() }
     }
+
+    /**
+     * Ignores [code] until it has been out of view for a moment: after its result is dismissed
+     * the product is usually still in front of the camera. Call on the main thread, where ML Kit
+     * delivers its reads.
+     */
+    fun ignoreUntilGone(code: String) = confirm.ignoreUntilGone(code)
 
     fun close() = scanner.close()
 
@@ -103,17 +119,40 @@ class BarcodeAnalyzer(
  * agree on it too), and a partly seen EAN-13 can come out as a valid EAN-8 or UPC-E, so short codes
  * need more agreement. Frames where nothing was read in between (motion blur) don't reset the
  * count; a different value does. Costs ~70 ms for a normal code, ~130 ms for a short one.
+ *
+ * A code already handled can be ignored until it has been missing from [goneNanos] of analysed
+ * frames, so rescanning with the product still in view doesn't bring its result straight back.
  */
 internal class ReadConfirmer(
     private val needed: Int = 3,
     private val neededShort: Int = 5,
     private val windowNanos: Long = 1_000_000_000L,
+    private val goneNanos: Long = 1_000_000_000L,
 ) {
     private var last: String? = null
     private var count = 0
     private var at = 0L
+    private var ignored: String? = null
 
-    fun read(value: String, short: Boolean, nowNanos: Long): Boolean {
+    /** When the ignored code was first missing from a frame; null while it's still seen. */
+    private var goneSince: Long? = null
+
+    fun ignoreUntilGone(value: String) {
+        ignored = value
+        goneSince = null
+        last = null
+        count = 0
+    }
+
+    fun isIgnored(value: String?): Boolean = value != null && value == ignored
+
+    /**
+     * Whether [value], this frame's read (null when it read nothing), is now confirmed. [inView] is
+     * every code the frame showed, to tell when an ignored one has gone.
+     */
+    fun read(value: String?, short: Boolean, nowNanos: Long, inView: Set<String> = setOfNotNull(value)): Boolean {
+        forgetIfGone(inView, nowNanos)
+        if (value == null || value == ignored) return false
         if (value != last || nowNanos - at > windowNanos) {
             last = value
             count = 0
@@ -121,6 +160,19 @@ internal class ReadConfirmer(
         at = nowNanos
         count++
         return count >= if (short) neededShort else needed
+    }
+
+    private fun forgetIfGone(inView: Set<String>, nowNanos: Long) {
+        val code = ignored ?: return
+        if (code in inView) {
+            goneSince = null
+        } else {
+            val since = goneSince ?: nowNanos.also { goneSince = it }
+            if (nowNanos - since >= goneNanos) {
+                ignored = null
+                goneSince = null
+            }
+        }
     }
 }
 

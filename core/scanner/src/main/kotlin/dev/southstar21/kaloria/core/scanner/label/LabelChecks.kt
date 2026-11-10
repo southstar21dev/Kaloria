@@ -10,20 +10,20 @@ object LabelChecks {
         val kcal = n.energyKcal
         val implied = n.atwaterKcal
         if (kcal != null && implied != null && abs(implied - kcal) > max(20.0, kcal * 0.15)) {
-            add(FieldWarning("energy", "Energy doesn't match the macros (they imply ${implied.toInt()} kcal)."))
+            add(FieldWarning("energy", WarningKind.EnergyVsMacros, listOf(implied.toInt().toString())))
         }
-        if (kcal != null && kcal > 920) add(FieldWarning("energy", "More than 920 kcal per 100 is impossible."))
+        if (kcal != null && kcal > 920) add(FieldWarning("energy", WarningKind.EnergyOver920))
         if (n.sugars != null && n.carbohydrates != null && n.sugars!! > n.carbohydrates!! + 0.05) {
-            add(FieldWarning("sugars", "Sugars are higher than carbohydrates."))
+            add(FieldWarning("sugars", WarningKind.SugarsOverCarbs))
         }
         if (n.saturatedFat != null && n.fat != null && n.saturatedFat!! > n.fat!! + 0.05) {
-            add(FieldWarning("saturatedFat", "Saturated fat is higher than fat."))
+            add(FieldWarning("saturatedFat", WarningKind.SaturatedOverFat))
         }
         listOf("protein" to n.protein, "carbohydrates" to n.carbohydrates, "fat" to n.fat, "salt" to n.salt)
             .filter { (_, v) -> v != null && v > 100 }
-            .forEach { (f, _) -> add(FieldWarning(f, "More than 100 g per 100 is impossible.")) }
+            .forEach { (f, _) -> add(FieldWarning(f, WarningKind.Over100Grams)) }
         listOf("energy" to kcal, "protein" to n.protein, "carbohydrates" to n.carbohydrates, "fat" to n.fat)
             .filter { it.second == null }
-            .forEach { (f, _) -> add(FieldWarning(f, "Not read from the label.")) }
+            .forEach { (f, _) -> add(FieldWarning(f, WarningKind.NotRead)) }
     }
 }
