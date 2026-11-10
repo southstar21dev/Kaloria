@@ -8,4 +8,6 @@ dependencies {
     // FoodCatalog is a concrete class over the OFF/USDA data sources; the ViewModel test feeds them a mock engine.
     testImplementation(projects.core.network)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.ktor.client.content.negotiation)
+    testImplementation(libs.ktor.serialization.kotlinx.json)
 }

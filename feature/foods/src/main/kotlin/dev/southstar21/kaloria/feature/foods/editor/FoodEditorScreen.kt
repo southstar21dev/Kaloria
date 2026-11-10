@@ -55,12 +55,14 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import dev.southstar21.kaloria.core.data.repository.ServerLimits
 import dev.southstar21.kaloria.core.designsystem.component.ContentCard
 import dev.southstar21.kaloria.core.designsystem.component.GlassScreen
 import dev.southstar21.kaloria.core.designsystem.component.glass
 import dev.southstar21.kaloria.core.designsystem.component.glassSource
 import dev.southstar21.kaloria.core.model.AmountUnit
 import dev.southstar21.kaloria.core.ui.DecimalField
+import dev.southstar21.kaloria.core.ui.gramsUnit
 import dev.southstar21.kaloria.core.ui.kcalText
 import dev.southstar21.kaloria.feature.foods.FoodEditorKey
 import dev.southstar21.kaloria.feature.foods.R
@@ -76,10 +78,11 @@ fun FoodEditorRoute(
 ) {
     val state = viewModel.state
     LaunchedEffect(viewModel) { viewModel.done.collect { onDone() } }
+    val defaultServingName = stringResource(R.string.food_editor_default_serving_name)
     FoodEditorScreen(
         state = state,
         onEdit = viewModel::edit,
-        onSave = viewModel::save,
+        onSave = { viewModel.save(defaultServingName) },
         onDelete = viewModel::delete,
         onBack = onDone,
     )
@@ -143,30 +146,38 @@ internal fun FoodEditorScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = form.name,
-                            onValueChange = { v -> onEdit { copy(name = v) } },
+                            onValueChange = { v -> onEdit { copy(name = v.capped(name, ServerLimits.NAME)) } },
                             label = { Text(stringResource(R.string.food_editor_name)) },
                             singleLine = true,
-                            isError = show && errors.name,
-                            supportingText = if (show && errors.name) ({ Text(stringResource(R.string.food_editor_required)) }) else null,
+                            isError = (show && errors.name) || form.name.trim().length > ServerLimits.NAME,
+                            supportingText = when {
+                                show && errors.name -> ({ Text(stringResource(R.string.food_editor_required)) })
+                                else -> lengthCounter(form.name, ServerLimits.NAME)
+                            },
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
                             value = form.brand,
-                            onValueChange = { v -> onEdit { copy(brand = v) } },
+                            onValueChange = { v -> onEdit { copy(brand = v.capped(brand, ServerLimits.BRAND)) } },
                             label = { Text(stringResource(R.string.food_editor_brand_optional)) },
                             singleLine = true,
+                            isError = form.brand.trim().length > ServerLimits.BRAND,
+                            supportingText = lengthCounter(form.brand, ServerLimits.BRAND),
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         OutlinedTextField(
                             value = form.barcode,
-                            onValueChange = { v -> onEdit { copy(barcode = v.filter(Char::isDigit)) } },
+                            onValueChange = { v -> onEdit { copy(barcode = v.filter(Char::isDigit).capped(barcode, ServerLimits.BARCODE)) } },
                             label = { Text(stringResource(R.string.food_editor_barcode_optional)) },
                             singleLine = true,
+                            isError = form.barcode.length > ServerLimits.BARCODE,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        // A warning, not an error: two foods may share a code, but a scan finds only one.
+                        state.barcodeUsedBy?.let { FieldNote(stringResource(R.string.food_editor_barcode_used, it)) }
                         Spacer(Modifier.height(4.dp))
                         Text(stringResource(R.string.food_editor_values_per), style = MaterialTheme.typography.labelLarge)
                         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -183,6 +194,7 @@ internal fun FoodEditorScreen(
             }
 
             item(key = "macros", contentType = "macros") {
+                val grams = gramsUnit()
                 ContentCard(Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.food_editor_nutrition_per_100, form.unit.symbol), style = MaterialTheme.typography.titleSmall)
@@ -213,40 +225,41 @@ internal fun FoodEditorScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        flagged("energy")?.let { FieldNote(it) }
+                        // All of energy's notes: a "values per portion" table is reported here too.
+                        warn["energy"]?.forEach { FieldNote(it.text()) }
                         PairRow(
-                            { DecimalField(form.protein, { v -> onEdit { copy(protein = v) } }, stringResource(R.string.food_editor_protein), it, suffix = "g", isError = flagged("protein") != null) },
-                            { DecimalField(form.fiber, { v -> onEdit { copy(fiber = v) } }, stringResource(R.string.food_editor_fiber), it, suffix = "g", isError = flagged("fiber") != null) },
+                            { DecimalField(form.protein, { v -> onEdit { copy(protein = v) } }, stringResource(R.string.food_editor_protein), it, suffix = grams, isError = flagged("protein") != null) },
+                            { DecimalField(form.fiber, { v -> onEdit { copy(fiber = v) } }, stringResource(R.string.food_editor_fiber), it, suffix = grams, isError = flagged("fiber") != null) },
                         )
                         PairRow(
-                            { DecimalField(form.carbohydrates, { v -> onEdit { copy(carbohydrates = v) } }, stringResource(R.string.food_editor_carbs), it, suffix = "g", isError = flagged("carbohydrates") != null) },
+                            { DecimalField(form.carbohydrates, { v -> onEdit { copy(carbohydrates = v) } }, stringResource(R.string.food_editor_carbs), it, suffix = grams, isError = flagged("carbohydrates") != null) },
                             {
                                 DecimalField(
                                     form.sugars,
                                     { v -> onEdit { copy(sugars = v) } },
                                     stringResource(R.string.food_editor_sugars),
                                     it,
-                                    suffix = "g",
+                                    suffix = grams,
                                     isError = errors.sugarsOverCarbs || flagged("sugars") != null,
                                 )
                             },
                         )
                         PairRow(
-                            { DecimalField(form.fat, { v -> onEdit { copy(fat = v) } }, stringResource(R.string.food_editor_fat), it, suffix = "g", isError = flagged("fat") != null) },
+                            { DecimalField(form.fat, { v -> onEdit { copy(fat = v) } }, stringResource(R.string.food_editor_fat), it, suffix = grams, isError = flagged("fat") != null) },
                             {
                                 DecimalField(
                                     form.saturatedFat,
                                     { v -> onEdit { copy(saturatedFat = v) } },
                                     stringResource(R.string.food_editor_saturated),
                                     it,
-                                    suffix = "g",
+                                    suffix = grams,
                                     isError = errors.saturatedOverFat || flagged("saturatedFat") != null,
                                 )
                             },
                         )
-                        DecimalField(form.salt, { v -> onEdit { copy(salt = v) } }, stringResource(R.string.food_editor_salt), Modifier.fillMaxWidth(), suffix = "g", isError = flagged("salt") != null)
+                        DecimalField(form.salt, { v -> onEdit { copy(salt = v) } }, stringResource(R.string.food_editor_salt), Modifier.fillMaxWidth(), suffix = grams, isError = flagged("salt") != null)
                         listOf("protein", "fiber", "carbohydrates", "sugars", "fat", "saturatedFat", "salt").forEach { field ->
-                            warn[field]?.forEach { FieldNote(stringResource(R.string.food_editor_field_note, field.label(), it)) }
+                            warn[field]?.forEach { FieldNote(stringResource(R.string.food_editor_field_note, field.label(), it.text())) }
                         }
                         Checks(form, errors)
                     }
@@ -333,3 +346,23 @@ internal fun FoodEditorScreen(
         )
     }
 }
+
+/**
+ * Typing stops at [max] characters, the server's limit, and a paste is cut there (never through an
+ * emoji). Text already longer, prefilled from a scan or an import, can be shortened but not lengthened.
+ */
+internal fun String.capped(previous: String, max: Int): String = when {
+    length <= max -> this
+    previous.length > max -> if (length <= previous.length) this else previous
+    else -> take(max).let { if (it.last().isHighSurrogate()) it.dropLast(1) else it }
+}
+
+/** "184 / 200" under a field once its text gets close to the limit, so hitting it is no surprise. */
+private fun lengthCounter(text: String, max: Int): (@Composable () -> Unit)? = if (text.trim().length < max - LENGTH_COUNTER_FROM) {
+    null
+} else {
+    { Text(stringResource(R.string.food_editor_length, text.trim().length, max)) }
+}
+
+/** How many characters before the limit the counter appears. */
+private const val LENGTH_COUNTER_FROM = 20

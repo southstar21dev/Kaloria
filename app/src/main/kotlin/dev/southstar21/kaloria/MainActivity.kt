@@ -1,6 +1,5 @@
 package dev.southstar21.kaloria
 
-import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,9 +11,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,9 +25,11 @@ import dev.southstar21.kaloria.core.designsystem.theme.KaloriaTheme
 import dev.southstar21.kaloria.core.ui.LocalClock
 import dev.southstar21.kaloria.navigation.KaloriaNavDisplay
 import dev.southstar21.kaloria.navigation.Shortcut
+import dev.southstar21.kaloria.widget.WidgetShortcuts
 import java.time.Clock
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -57,9 +60,13 @@ class MainActivity : ComponentActivity() {
         // Always the light silver theme, so the system bars always get dark icons.
         enableEdgeToEdge(SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT), SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
-        // Only a fresh launch: not a restore, and not a relaunch from recents replaying the old intent.
-        val launchedFromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
-        if (savedInstanceState == null && !launchedFromHistory) shortcut.value = Shortcut.from(intent)
+        // Shortcuts come only through the widget's unexported trampoline, never from this exported
+        // activity's intent, so other apps can't open screens over the user's work.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                WidgetShortcuts.pending.filterNotNull().collect { Shortcut.from(WidgetShortcuts.take())?.let { shortcut.value = it } }
+            }
+        }
         setContent {
             val preferences by viewModel.preferences.collectAsStateWithLifecycle()
             KaloriaTheme(
@@ -70,10 +77,5 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        Shortcut.from(intent)?.let { shortcut.value = it }
     }
 }

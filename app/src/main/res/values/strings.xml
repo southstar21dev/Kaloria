@@ -9,4 +9,21 @@
     <string name="dock_add_search">Search foods</string>
     <string name="dock_close_add_menu">Close add menu</string>
     <string name="dock_add_food">Add food</string>
+
+    <!-- Health Connect: why the app asks for access -->
+    <string name="health_permissions_back">Back</string>
+    <string name="health_permissions_title">Health Connect</string>
+    <string name="health_permissions_subtitle">Why Kaloria asks for access</string>
+    <string name="health_permissions_access_header">What it\'s used for</string>
+    <string name="health_permissions_steps_title">Steps</string>
+    <string name="health_permissions_steps_body">Kaloria reads your step count to show it on Today and Progress, next to your steps goal. It\'s shown as a count only; Kaloria doesn\'t turn steps into calories burned.</string>
+    <string name="health_permissions_weight_title">Weight</string>
+    <string name="health_permissions_weight_body">Kaloria reads and writes weigh-ins, so weight you log in Kaloria and weight from Samsung Health or a smart scale stay the same in both places. They\'re shown on Progress.</string>
+    <string name="health_permissions_history_title">Older history (optional)</string>
+    <string name="health_permissions_history_body">With this, Kaloria can also read weigh-ins from before the last 30 days, so a new install brings in your earlier weight. Sync works without it.</string>
+    <string name="health_permissions_privacy_header">Your data</string>
+    <string name="health_permissions_stored_title">Where it\'s kept</string>
+    <string name="health_permissions_stored_body">Step counts are only read for display and never stored or sent anywhere. Weigh-ins are kept on this phone and, only if you turn on sync in Settings, on the server you set up yourself. Kaloria has no ads and no analytics.</string>
+    <string name="health_permissions_control_title">Your choice</string>
+    <string name="health_permissions_control_body">Kaloria works without Health Connect. You can turn either permission off at any time in Health Connect; weigh-ins already logged in Kaloria stay there.</string>
 </resources>

@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />
     <uses-permission android:name="android.permission.health.WRITE_WEIGHT" />
+    <!-- Other apps' weigh-ins and steps from before Health Connect's default 30 days. Optional. -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
     <!-- Only needed for a PocketBase on the local network (Android 17 local network protection). -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -22,7 +24,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kaloria">
 
-        <!-- singleTop: widget shortcuts reach the running activity through onNewIntent instead of
+        <!-- singleTop: the widget's shortcuts bring back the running activity instead of
              recreating it. The portrait lock only holds on phones; from Android 16 the system
              ignores it on large screens (600dp and wider), where the app runs in any orientation. -->
         <activity
@@ -30,25 +32,26 @@
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Widget shortcuts; not exported to other apps beyond this package's own PendingIntents. -->
-            <intent-filter>
-                <action android:name="dev.southstar21.kaloria.action.SCAN_BARCODE" />
-                <action android:name="dev.southstar21.kaloria.action.SEARCH_FOOD" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
         </activity>
+
+        <!-- Why Kaloria wants step and weight access. Only reachable through the alias below. -->
+        <activity
+            android:name=".health.HealthPermissionsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Kaloria.Main" />
 
         <!-- Health Connect links here when the user asks why Kaloria wants step and weight access. -->
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
-            android:targetActivity=".MainActivity">
+            android:targetActivity=".health.HealthPermissionsActivity">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />

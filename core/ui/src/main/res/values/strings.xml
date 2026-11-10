@@ -35,4 +35,29 @@
     <string name="day_today">Today</string>
     <string name="day_yesterday">Yesterday</string>
     <string name="day_tomorrow">Tomorrow</string>
+    <string name="unit_grams">g</string>
+
+    <!-- Micronutrient names -->
+    <string name="micronutrient_sodium">Sodium</string>
+    <string name="micronutrient_potassium">Potassium</string>
+    <string name="micronutrient_calcium">Calcium</string>
+    <string name="micronutrient_iron">Iron</string>
+    <string name="micronutrient_magnesium">Magnesium</string>
+    <string name="micronutrient_zinc">Zinc</string>
+    <string name="micronutrient_cholesterol">Cholesterol</string>
+    <string name="micronutrient_monounsaturated_fat">Monounsaturated fat</string>
+    <string name="micronutrient_polyunsaturated_fat">Polyunsaturated fat</string>
+    <string name="micronutrient_trans_fat">Trans fat</string>
+    <string name="micronutrient_added_sugars">Added sugars</string>
+    <string name="micronutrient_vitamin_a">Vitamin A</string>
+    <string name="micronutrient_vitamin_c">Vitamin C</string>
+    <string name="micronutrient_vitamin_d">Vitamin D</string>
+    <string name="micronutrient_vitamin_e">Vitamin E</string>
+    <string name="micronutrient_vitamin_k">Vitamin K</string>
+    <string name="micronutrient_vitamin_b1">Thiamin (B1)</string>
+    <string name="micronutrient_vitamin_b2">Riboflavin (B2)</string>
+    <string name="micronutrient_vitamin_b3">Niacin (B3)</string>
+    <string name="micronutrient_vitamin_b6">Vitamin B6</string>
+    <string name="micronutrient_vitamin_b12">Vitamin B12</string>
+    <string name="micronutrient_folate">Folate</string>
 </resources>

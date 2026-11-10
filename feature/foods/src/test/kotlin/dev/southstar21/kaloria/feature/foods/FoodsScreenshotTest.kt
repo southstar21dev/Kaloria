@@ -8,6 +8,8 @@ import dev.southstar21.kaloria.core.model.Micronutrient
 import dev.southstar21.kaloria.core.model.Nutrients
 import dev.southstar21.kaloria.core.model.Serving
 import dev.southstar21.kaloria.core.scanner.label.ExtractionMethod
+import dev.southstar21.kaloria.core.scanner.label.FieldWarning
+import dev.southstar21.kaloria.core.scanner.label.WarningKind
 import dev.southstar21.kaloria.core.testing.screenshot
 import dev.southstar21.kaloria.feature.foods.editor.FoodEditorScreen
 import dev.southstar21.kaloria.feature.foods.editor.FoodEditorState
@@ -94,8 +96,8 @@ class FoodsScreenshotTest {
                 photo = null,
                 method = ExtractionMethod.GeminiNano,
                 warnings = mapOf(
-                    "energy" to listOf("Energy doesn't match the macros (they imply 320 kcal)."),
-                    "protein" to listOf("AI read 24, the text reads 21. Check the photo."),
+                    "energy" to listOf(FieldWarning("energy", WarningKind.EnergyVsMacros, listOf("320"))),
+                    "protein" to listOf(FieldWarning("protein", WarningKind.ModelDisagrees, listOf("24", "21"))),
                 ),
             ),
         ),

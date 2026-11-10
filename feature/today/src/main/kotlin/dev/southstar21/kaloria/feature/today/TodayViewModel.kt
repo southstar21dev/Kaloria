@@ -59,20 +59,28 @@ class TodayViewModel @Inject constructor(
         private set
 
     val stepsPermissions get() = stepsRepository.permissions
-    fun stepsPermissionContract() = stepsRepository.permissionContract()
+    val stepsPermissionContract get() = stepsRepository.permissionContract()
 
-    /** The day "today" was when last seen; refreshed on resume, to follow the date past midnight. */
+    /** The day "today" was when last seen; checked on resume and as the clock ticks, to follow the date past midnight. */
     private val today = MutableStateFlow(LocalDate.now(clock))
 
-    /** Called on resume: if the app sat open past midnight, move from yesterday to the new today. */
+    /** Called on resume: catches up with the date, and re-reads steps that may have changed meanwhile. */
     fun onResume() {
+        if (!onTimeChange()) refreshSteps()
+    }
+
+    /**
+     * Called as the clock ticks while the screen is in front. Once the date has changed, today
+     * moves on, and the shown day with it if it was today. Returns whether it moved.
+     */
+    fun onTimeChange(): Boolean {
         val now = LocalDate.now(clock)
         val lastToday = today.value
-        if (now != lastToday) {
-            if (date.value == lastToday) date.value = now
-            today.value = now
-        }
+        if (now == lastToday) return false
+        if (date.value == lastToday) date.value = now
+        today.value = now
         refreshSteps()
+        return true
     }
 
     suspend fun servingsFor(entry: LogEntry): List<dev.southstar21.kaloria.core.model.Serving> = entry.foodId?.let { foods.get(it)?.servings }.orEmpty()
@@ -114,7 +122,9 @@ class TodayViewModel @Inject constructor(
         refreshSteps()
     }
     fun goToToday() {
-        date.value = LocalDate.now(clock)
+        val now = LocalDate.now(clock)
+        today.value = now
+        date.value = now
         refreshSteps()
     }
     fun selectDay(day: LocalDate) {

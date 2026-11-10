@@ -20,8 +20,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.southstar21.kaloria.core.model.PortionUnit
 
-/** A serving being added ([index] null) or edited, with its fields as typed. */
-internal data class ServingEdit(val index: Int?, val name: String, val amount: String)
+/**
+ * A serving being added ([index] null) or edited, with its fields as first shown. [base] is the
+ * exact amount in grams or ml behind [amount], kept while the amount isn't edited.
+ */
+internal data class ServingEdit(val index: Int?, val name: String, val amount: String, val base: Double? = null)
 
 @Composable
 internal fun ServingDialog(
@@ -33,7 +36,7 @@ internal fun ServingDialog(
 ) {
     var name by rememberSaveable { mutableStateOf(edit.name) }
     var amount by rememberSaveable { mutableStateOf(edit.amount) }
-    val value = amount.parseDecimal()?.takeIf { it > 0 }
+    val value = servingAmount(edit, amount, unit)
     val canSave = name.isNotBlank() && value != null
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -51,7 +54,7 @@ internal fun ServingDialog(
                 DecimalField(amount, { amount = it }, stringResource(R.string.serving_dialog_amount), Modifier.fillMaxWidth(), suffix = unit.symbol, isError = amount.isNotEmpty() && value == null, imeAction = ImeAction.Done)
             }
         },
-        confirmButton = { TextButton(onClick = { value?.let { onSave(name.trim(), unit.toBase(it)) } }, enabled = canSave) { Text(stringResource(R.string.serving_dialog_save)) } },
+        confirmButton = { TextButton(onClick = { value?.let { onSave(name.trim(), it) } }, enabled = canSave) { Text(stringResource(R.string.serving_dialog_save)) } },
         dismissButton = {
             Row {
                 onDelete?.let { TextButton(onClick = it) { Text(stringResource(R.string.serving_dialog_delete), color = MaterialTheme.colorScheme.tertiary) } }

@@ -56,10 +56,13 @@ half4 main(float2 coord) {
         null
     }
 
+    // Made once: the shader's uniforms are updated in place each frame, and the brush draws them.
+    private val brush = shader?.let { ShaderBrush(it.asComposeShader()) }
+
     val modifier: Modifier = Modifier.drawWithContent {
         val progress = pressAnimation.value
         if (progress > 0f) {
-            if (shader != null) {
+            if (shader != null && brush != null) {
                 drawRect(Color.White.copy(0.08f * progress), blendMode = BlendMode.Plus)
                 shader.apply {
                     val p = position(size, positionAnimation.value)
@@ -68,7 +71,7 @@ half4 main(float2 coord) {
                     setFloatUniform("radius", size.minDimension * 1.5f)
                     setFloatUniform("position", p.x.fastCoerceIn(0f, size.width), p.y.fastCoerceIn(0f, size.height))
                 }
-                drawRect(ShaderBrush(shader.asComposeShader()), blendMode = BlendMode.Plus)
+                drawRect(brush, blendMode = BlendMode.Plus)
             } else {
                 drawRect(Color.White.copy(0.25f * progress), blendMode = BlendMode.Plus)
             }

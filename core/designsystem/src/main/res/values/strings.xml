@@ -2,4 +2,8 @@
     <!-- ThinkingOrb accessibility labels -->
     <string name="thinking_orb_searching">Searching</string>
     <string name="thinking_orb_working">Working</string>
+
+    <!-- NutrientBar: "52 / 120 g", or "52 g" without a target -->
+    <string name="nutrient_bar_value_of_target">%1$s / %2$s %3$s</string>
+    <string name="nutrient_bar_value">%1$s %2$s</string>
 </resources>

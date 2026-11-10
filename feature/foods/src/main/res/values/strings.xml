@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- PluralsCandidate is ignored on strings whose number counts a unit ("kcal") or a range that is
+         never 1, so the English reads right without plurals. -->
     <!-- Foods list -->
     <string name="foods_title">Foods</string>
     <string name="foods_search_placeholder">Search name, brand or barcode</string>
@@ -22,6 +24,7 @@
     <string name="food_editor_required">Required</string>
     <string name="food_editor_brand_optional">Brand (optional)</string>
     <string name="food_editor_barcode_optional">Barcode (optional)</string>
+    <string name="food_editor_barcode_used">“%1$s” already has this barcode. You can still save, but scanning it finds only one of them.</string>
     <string name="food_editor_values_per">Values are per</string>
     <string name="food_editor_per_100">100 %1$s</string>
     <string name="food_editor_nutrition_per_100">Nutrition per 100 %1$s</string>
@@ -51,14 +54,17 @@
 
     <!-- Food editor: checks -->
     <string name="food_editor_check_name">A name is required.</string>
+    <string name="food_editor_check_too_long">The name, brand or barcode is longer than sync allows; shorten it to save.</string>
+    <string name="food_editor_length">%1$d / %2$d</string>
     <string name="food_editor_check_energy">Energy is required.</string>
     <string name="food_editor_check_sugars">Sugars can\'t be more than carbs.</string>
     <string name="food_editor_check_saturated">Saturated fat can\'t be more than fat.</string>
     <string name="food_editor_check_macros_over">Macros add up to more than 100 g per 100 g.</string>
-    <string name="food_editor_check_implausible">A value is impossible per 100 %1$s (energy over %2$d kcal or a nutrient over 100 g).</string>
+    <string name="food_editor_check_implausible" tools:ignore="PluralsCandidate">A value is impossible per 100 %1$s (energy over %2$d kcal or a nutrient over 100 g).</string>
     <string name="food_editor_check_unparseable">Some values aren\'t numbers.</string>
-    <string name="food_editor_check_mismatch_more">The macros imply %1$s kcal, %2$d kcal more than stated. Double-check against the label.</string>
-    <string name="food_editor_check_mismatch_less">The macros imply %1$s kcal, %2$d kcal less than stated. Double-check against the label.</string>
+    <string name="food_editor_check_servings">Each serving needs an amount above 0 and up to 10,000.</string>
+    <string name="food_editor_check_mismatch_more" tools:ignore="PluralsCandidate">The macros imply %1$s kcal, %2$d kcal more than stated. Double-check against the label.</string>
+    <string name="food_editor_check_mismatch_less" tools:ignore="PluralsCandidate">The macros imply %1$s kcal, %2$d kcal less than stated. Double-check against the label.</string>
 
     <!-- Food editor: micronutrients and servings -->
     <string name="food_editor_micronutrients">Micronutrients</string>
@@ -70,6 +76,8 @@
     <string name="food_editor_amount">Amount</string>
     <string name="food_editor_remove_serving">Remove serving</string>
     <string name="food_editor_add_serving">Add serving</string>
+    <!-- Saved as the name of a serving given only an amount. -->
+    <string name="food_editor_default_serving_name">1 serving</string>
 
     <!-- Food editor: scanned label -->
     <string name="food_editor_scan_read_by_nano">Read by Gemini Nano</string>
@@ -79,4 +87,23 @@
     <string name="food_editor_scan_check">Check every value against the photo before saving.</string>
     <string name="food_editor_scan_check_highlighted">Check every value against the photo. Highlighted fields need a closer look.</string>
     <string name="food_editor_scan_photo">Photo of the nutrition label</string>
+
+    <!-- Food editor: why a value read from a label needs a second look -->
+    <string name="food_editor_warning_less_than">Label says “less than %1$s”; the upper bound was used.</string>
+    <string name="food_editor_warning_trace">Label says “trace”; 0 was used.</string>
+    <string name="food_editor_warning_kcal_from_kj">Only kJ was readable; kcal was calculated from it.</string>
+    <string name="food_editor_warning_energy_units_disagree">kJ and kcal on the label don\'t agree; check the energy value.</string>
+    <string name="food_editor_warning_sodium_unit_guessed">Sodium had no unit; it was read as milligrams.</string>
+    <string name="food_editor_warning_per_portion">The table seems to give values per portion, not per 100; check every value.</string>
+    <string name="food_editor_warning_column_guessed">No column heading was readable, so the first column was taken as per 100; check every value.</string>
+    <string name="food_editor_warning_gram_read_as_nine">The last 9 may be a misread “g”; check this value.</string>
+    <string name="food_editor_warning_energy_vs_macros">Energy doesn\'t match the macros (they imply %1$s kcal).</string>
+    <string name="food_editor_warning_energy_over_920">More than 920 kcal per 100 is impossible.</string>
+    <string name="food_editor_warning_sugars_over_carbs">Sugars are higher than carbohydrates.</string>
+    <string name="food_editor_warning_saturated_over_fat">Saturated fat is higher than fat.</string>
+    <string name="food_editor_warning_over_100_grams">More than 100 g per 100 is impossible.</string>
+    <string name="food_editor_warning_not_read">Not read from the label.</string>
+    <string name="food_editor_warning_model_missed">The AI missed this; it was read from the label\'s text.</string>
+    <string name="food_editor_warning_model_zero">The AI read 0 here, and the label\'s text couldn\'t confirm it.</string>
+    <string name="food_editor_warning_model_disagrees">AI read %1$s, the text reads %2$s. Check the photo.</string>
 </resources>

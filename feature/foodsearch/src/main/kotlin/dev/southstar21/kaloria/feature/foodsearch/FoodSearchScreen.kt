@@ -96,6 +96,8 @@ fun FoodSearchRoute(
         results = results,
         online = online,
         snackbar = snackbar,
+        picked = remember(viewModel.pickedKey, results, online) { viewModel.pickIn(results, online) },
+        onPick = viewModel::pick,
         defaultTime = viewModel::defaultTime,
         onLog = viewModel::log,
         onSaveServings = viewModel::saveServings,
@@ -113,6 +115,8 @@ internal fun FoodSearchScreen(
     results: List<Food>?,
     online: OnlineState,
     snackbar: SnackbarHostState,
+    picked: Pickable? = null,
+    onPick: (Pickable?) -> Unit = {},
     defaultTime: () -> java.time.LocalTime,
     onLog: (Pickable, Double, java.time.LocalTime) -> Unit,
     onSaveServings: (foodId: String, List<Serving>) -> Unit = { _, _ -> },
@@ -120,7 +124,6 @@ internal fun FoodSearchScreen(
     onCreateFood: (String) -> Unit,
     onScanBarcode: (() -> Unit)?,
 ) {
-    var selectedKey by rememberSaveable { mutableStateOf<String?>(null) }
     val haptics = LocalHapticFeedback.current
     var expanded by rememberSaveable { mutableStateOf(setOf<String>()) }
     val focus = remember { FocusRequester() }
@@ -171,7 +174,7 @@ internal fun FoodSearchScreen(
                         macroLine = stringResource(R.string.food_search_macro_line, food.nutrients.protein.gramsText(), food.nutrients.carbohydrates.gramsText(), food.nutrients.fat.gramsText()),
                         onClick = {
                             keyboard?.hide()
-                            selectedKey = Pickable.Own(food).key
+                            onPick(Pickable.Own(food))
                         },
                         modifier = Modifier.animateItem(),
                     )
@@ -183,7 +186,7 @@ internal fun FoodSearchScreen(
                 onToggle = { source -> expanded = if (source in expanded) expanded - source else expanded + source },
             ) { remote ->
                 keyboard?.hide()
-                selectedKey = Pickable.Online(remote).key
+                onPick(Pickable.Online(remote))
             }
             item(key = "create") {
                 ContentCard(Modifier.fillMaxWidth(), onClick = { onCreateFood(currentQuery.value.trim()) }, contentPadding = 16.dp) {
@@ -237,13 +240,6 @@ internal fun FoodSearchScreen(
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = bottom + 16.dp))
     }
 
-    // Only looked up while a food is picked, rather than rebuilding every result on each keystroke.
-    val picked = remember(selectedKey, results, online) {
-        selectedKey?.let { key ->
-            results.orEmpty().map(Pickable::Own).firstOrNull { it.key == key }
-                ?: (online as? OnlineState.Loaded)?.results?.let { it.openFoodFacts + it.usda }.orEmpty().map(Pickable::Online).firstOrNull { it.key == key }
-        }
-    }
     picked?.let { pick ->
         val (name, brand, unit, per100, servings) = when (pick) {
             is Pickable.Own -> with(pick.food) { SheetFood(name, brand, unit, nutrients, servings) }
@@ -261,9 +257,9 @@ internal fun FoodSearchScreen(
             onConfirm = { amount, time ->
                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                 onLog(pick, amount, time)
-                selectedKey = null
+                onPick(null)
             },
-            onDismiss = { selectedKey = null },
+            onDismiss = { onPick(null) },
             // Only foods already in the user's list can keep servings; online ones get them once saved.
             onServingsChange = (pick as? Pickable.Own)?.let { own -> { onSaveServings(own.food.id, it) } },
         )

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- PluralsCandidate is ignored on strings whose number counts a unit ("kcal") or a range that is
+         never 1, so the English reads right without plurals. -->
     <string name="food_search_back">Back</string>
     <string name="food_search_placeholder">Search foods</string>
     <string name="food_search_clear">Clear</string>
@@ -17,5 +19,5 @@
     <string name="food_search_source_usda">USDA generic foods</string>
     <string name="food_search_source_failed">Couldn\'t load results from %1$s. Check your connection or try again.</string>
     <string name="food_search_show_fewer">Show fewer</string>
-    <string name="food_search_show_all">Show all %1$d from %2$s</string>
+    <string name="food_search_show_all" tools:ignore="PluralsCandidate">Show all %1$d from %2$s</string>
 </resources>

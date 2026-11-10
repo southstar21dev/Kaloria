@@ -35,7 +35,8 @@ data class ProgressSummary(
                     saturatedFat = avg { it.saturatedFat },
                     fiber = avg { it.fiber },
                     salt = avg { it.salt },
-                    micros = Micronutrient.entries.mapNotNull { m -> avg { it.micros[m] }?.let { m to it } }.toMap(),
+                    // Sodium from salt counts too, so days logged only from EU labels aren't left out.
+                    micros = Micronutrient.entries.mapNotNull { m -> avg { if (m == Micronutrient.Sodium) it.sodiumMg else it.micros[m] }?.let { m to it } }.toMap(),
                 ),
             )
         }

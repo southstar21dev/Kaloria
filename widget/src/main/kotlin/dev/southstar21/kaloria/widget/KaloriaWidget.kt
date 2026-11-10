@@ -5,7 +5,7 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -36,7 +36,6 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import dev.southstar21.kaloria.core.designsystem.component.grouped
 import dev.southstar21.kaloria.core.designsystem.theme.KaloriaColors
-import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
@@ -47,10 +46,6 @@ import kotlinx.coroutines.launch
 /** The app's own deep-ink palette, so the widget follows neither the wallpaper nor the system theme. */
 private val KaloriaWidgetColors = ColorProviders(KaloriaColors)
 
-/** Intent action that opens the barcode scanner directly (handled by MainActivity). */
-const val ACTION_SCAN_BARCODE = "dev.southstar21.kaloria.action.SCAN_BARCODE"
-const val ACTION_SEARCH_FOOD = "dev.southstar21.kaloria.action.SEARCH_FOOD"
-
 /**
  * Drawn from a read of today's data. Writes push a redraw (see GlanceWidgetUpdater) and an alarm
  * redraws it at midnight, so it never needs to wake up on a timer. While a session is alive the
@@ -59,11 +54,14 @@ const val ACTION_SEARCH_FOOD = "dev.southstar21.kaloria.action.SEARCH_FOOD"
 class KaloriaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val entryPoint = context.widgetEntryPoint()
-        val day = LocalDate.now(entryPoint.clock())
-        val initial = entryPoint.dayData(day).first()
-        NewDayAlarm.schedule(context, entryPoint.clock())
+        val clock = entryPoint.clock()
+        val start = WidgetDay.refresh(clock)
+        val initial = entryPoint.dayData(start).first()
+        NewDayAlarm.schedule(context, clock)
         provideContent {
-            val data by remember { entryPoint.dayData(day) }.collectAsState(initial)
+            val day = WidgetDay.current.collectAsState().value ?: start
+            // Keeps the last day's numbers until the new day's first read, rather than flashing zeros.
+            val data by produceState(initial, day) { entryPoint.dayData(day).collect { value = it } }
             GlanceTheme(colors = KaloriaWidgetColors) { Content(context, data) }
         }
     }
@@ -78,6 +76,11 @@ class KaloriaWidgetReceiver : GlanceAppWidgetReceiver() {
                 val pending = goAsync()
                 CoroutineScope(Dispatchers.Default).launch {
                     try {
+                        // A widget session still running from before midnight never asks for the
+                        // next alarm itself, so it's armed here as well as when a session starts.
+                        val clock = context.widgetEntryPoint().clock()
+                        WidgetDay.refresh(clock)
+                        NewDayAlarm.schedule(context, clock)
                         glanceAppWidget.updateAll(context)
                     } finally {
                         pending.finish()
@@ -143,10 +146,10 @@ private fun Content(context: Context, data: WidgetData) {
     }
 }
 
-/** Brings back the running app (onNewIntent) rather than recreating it, or starts it if it isn't running. */
-private fun shortcutIntent(context: Context, action: String) = Intent(action)
-    .setPackage(context.packageName)
-    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+/** To the app's own, unexported [ShortcutActivity], by explicit component. */
+private fun shortcutIntent(context: Context, action: String) = Intent(context, ShortcutActivity::class.java)
+    .setAction(action)
+    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
 @Composable
 private fun Pill(
