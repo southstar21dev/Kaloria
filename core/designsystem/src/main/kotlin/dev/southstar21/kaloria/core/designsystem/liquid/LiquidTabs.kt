@@ -4,6 +4,7 @@ package dev.southstar21.kaloria.core.designsystem.liquid
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,6 +101,10 @@ fun LiquidTabs(
     val reduce = LocalReduceTransparency.current
     val accent = MaterialTheme.colorScheme.primary
     val container = MaterialTheme.colorScheme.surface.copy(alpha = if (reduce) 0.94f else 0.30f)
+    // The resting pill: what the selection drop shows the pane as (a near-opaque stand-in for the
+    // glass below), with the selected tint on it.
+    val pillBase = container.copy(alpha = container.alpha.coerceAtLeast(0.94f))
+    val selection = accent.copy(alpha = 0.25f)
     val shadowColor = Color.Black.copy(alpha = 0.10f)
     val itemsBackdrop = rememberLayerBackdrop()
     val pillHeight = height - 8.dp
@@ -193,13 +198,16 @@ fun LiquidTabs(
                         if (reduce) {
                             blur(32.dp.toPx())
                         } else {
+                            // iOS's bar material scatters what's behind it well past legibility.
                             vibrancy()
-                            blur(2.dp.toPx())
-                            lens(24.dp.toPx(), 34.dp.toPx())
+                            blur(10.dp.toPx())
+                            lens(20.dp.toPx(), 28.dp.toPx())
                         }
                     },
+                    // A faint rim: the system bar's edge barely catches the light.
+                    highlight = { Highlight.Default.copy(alpha = 0.3f) },
                     layerBlock = {
-                        val s = lerp(1f, 1f + 16.dp.toPx() / size.width, drag.pressProgress)
+                        val s = paneSwell(16.dp.toPx(), size.width, drag.pressProgress)
                         scaleX = s
                         scaleY = s
                     },
@@ -213,7 +221,9 @@ fun LiquidTabs(
         )
 
         // An invisible accent-tinted copy of the items, recorded so the drop shows the item under
-        // it in the accent colour as it passes. Its own glass only blurs while the drop is held.
+        // it in the accent colour as it passes. Its own glass only exists while the drop is held:
+        // at rest a flat fill looks the same through the drop and spares a backdrop per scroll frame.
+        val held by remember(drag) { derivedStateOf { drag.pressProgress > 0f } }
         items(
             tinted = true,
             scale = { lerp(1f, 1.2f, drag.pressProgress) },
@@ -222,19 +232,33 @@ fun LiquidTabs(
                 .alpha(0f)
                 .layerBackdrop(itemsBackdrop)
                 .graphicsLayer { translationX = panelOffset }
-                .drawBackdrop(
-                    backdrop = backdrop,
-                    shape = { paneShape },
-                    effects = {
-                        val p = drag.pressProgress
-                        vibrancy()
-                        if (p > 0f) {
-                            blur(8.dp.toPx() * p)
-                            lens(24.dp.toPx() * p, 24.dp.toPx() * p)
-                        }
+                .then(
+                    if (held) {
+                        Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { paneShape },
+                            effects = {
+                                val p = drag.pressProgress
+                                vibrancy()
+                                blur(8.dp.toPx() * p)
+                                lens(24.dp.toPx() * p, 24.dp.toPx() * p)
+                            },
+                            highlight = { Highlight.Default.copy(alpha = drag.pressProgress) },
+                            // Starts out exactly as the resting copy below looks, so a press doesn't
+                            // flash the pill to another colour; only the glass comes and goes.
+                            onDrawSurface = {
+                                drawRect(pillBase)
+                                drawRect(selection)
+                            },
+                        )
+                    } else {
+                        // Seen only through the resting pill, which doesn't blur: nearly opaque, so the
+                        // page doesn't show sharp through it. The tint sits behind the items, so the
+                        // selected item shows crisp on it instead of under a wash of the tint.
+                        Modifier
+                            .background(pillBase, paneShape)
+                            .background(selection, paneShape)
                     },
-                    highlight = { Highlight.Default.copy(alpha = drag.pressProgress) },
-                    onDrawSurface = { drawRect(container) },
                 )
                 .then(highlight.modifier)
                 .height(pillHeight)
@@ -254,13 +278,15 @@ fun LiquidTabs(
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(backdrop, itemsBackdrop),
                     shape = { Capsule() },
+                    // At rest the selection is a flat pill, as on iOS; it only turns into a lensing
+                    // drop of glass while held.
                     effects = {
-                        val p = lerp(0.6f, 1f, drag.pressProgress)
-                        lens(10.dp.toPx() * p, 14.dp.toPx() * p, chromaticAberration = true)
+                        val p = drag.pressProgress
+                        if (p > 0f) lens(10.dp.toPx() * p, 14.dp.toPx() * p, chromaticAberration = true)
                     },
-                    highlight = { Highlight.Default.copy(alpha = lerp(0.8f, 1f, drag.pressProgress)) },
-                    shadow = { Shadow(radius = 8.dp, alpha = lerp(0.35f, 1f, drag.pressProgress)) },
-                    innerShadow = { InnerShadow(radius = 3.dp + 5.dp * drag.pressProgress, alpha = lerp(0.5f, 1f, drag.pressProgress)) },
+                    highlight = { Highlight.Default.copy(alpha = drag.pressProgress) },
+                    shadow = { Shadow(radius = 8.dp, alpha = drag.pressProgress) },
+                    innerShadow = { InnerShadow(radius = 3.dp + 5.dp * drag.pressProgress, alpha = drag.pressProgress) },
                     layerBlock = {
                         scaleX = drag.scaleX
                         scaleY = drag.scaleY
@@ -268,17 +294,21 @@ fun LiquidTabs(
                         scaleX /= 1f - (v * 0.75f).fastCoerceIn(-0.2f, 0.2f)
                         scaleY *= 1f - (v * 0.25f).fastCoerceIn(-0.2f, 0.2f)
                     },
-                    onDrawSurface = {
-                        val p = drag.pressProgress
-                        drawRect(accent.copy(alpha = 0.14f), alpha = 1f - p)
-                        drawRect(Color.Black.copy(alpha = 0.03f * p))
-                    },
+                    // Nothing of its own: the pill's tint is drawn in the copy beneath it, at rest and
+                    // held alike, so pressing never changes its colour.
+                    onDrawSurface = {},
                 )
                 .height(pillHeight)
                 .fillMaxWidth(1f / count),
         )
     }
 }
+
+/**
+ * How much the pane swells while held: by [grow] pixels across its [width]. The layer's first pass
+ * can run before it has a size, and dividing by 0 made the scale NaN, which the layer kept.
+ */
+private fun paneSwell(grow: Float, width: Float, progress: Float): Float = if (width <= 0f) 1f else lerp(1f, 1f + grow / width, progress)
 
 /**
  * Keeps sideways drags inside this element from also reaching a parent's swipe gesture (Today
