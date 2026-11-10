@@ -2,8 +2,10 @@ package dev.southstar21.kaloria.core.database.dao
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import dev.southstar21.kaloria.core.database.model.LogEntryEntity
+import dev.southstar21.kaloria.core.database.model.nextUpdatedAt
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -26,7 +28,15 @@ interface LogEntryDao : SyncDao<LogEntryEntity> {
     @Upsert
     suspend fun upsert(entity: LogEntryEntity)
 
-    @Query("UPDATE log_entries SET deleted = 1, dirty = 1, updatedAt = :now WHERE id = :id")
+    /**
+     * Saves a local edit, stamped with its [LogEntryEntity.updatedAt] or just after the stored copy's,
+     * whichever is later (see [nextUpdatedAt]). Returns the row as saved.
+     */
+    @Transaction
+    suspend fun save(entity: LogEntryEntity): LogEntryEntity = entity.copy(updatedAt = nextUpdatedAt(entity.updatedAt, get(entity.id)?.updatedAt)).also { upsert(it) }
+
+    // Never stamped earlier than the row's current version, for the same reason as [save].
+    @Query("UPDATE log_entries SET deleted = 1, dirty = 1, updatedAt = MAX(:now, updatedAt + 1) WHERE id = :id")
     suspend fun softDelete(id: String, now: Long)
 
     @Query("SELECT * FROM log_entries WHERE dirty = 1")

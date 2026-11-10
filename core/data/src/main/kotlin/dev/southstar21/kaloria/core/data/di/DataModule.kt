@@ -26,6 +26,8 @@ internal abstract class DataModule {
 
     @Binds abstract fun steps(impl: HealthConnectSteps): StepsSource
 
+    @Binds abstract fun timeZones(impl: BroadcastTimeZoneMonitor): TimeZoneMonitor
+
     companion object {
         @Provides fun clock(): Clock = CurrentZoneClock
     }

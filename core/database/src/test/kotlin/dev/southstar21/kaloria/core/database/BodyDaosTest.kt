@@ -1,5 +1,6 @@
 package dev.southstar21.kaloria.core.database
 
+import dev.southstar21.kaloria.core.database.model.VANISHED_FROM_HEALTH_CONNECT
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -37,15 +38,16 @@ class BodyDaosTest {
     }
 
     @Test
-    fun `applyImport upserts and soft deletes in one go`() = runTest {
-        weights.upsertAll(listOf(weight("vanished", dirty = false), weight("stays", dirty = false)))
+    fun `applyImport upserts and marks vanished imports in one go`() = runTest {
+        weights.upsertAll(listOf(weight("vanished", healthConnectId = "hc1", dirty = false), weight("stays", dirty = false)))
 
-        weights.applyImport(upserts = listOf(weight("fresh", healthConnectId = "hc")), deletedIds = listOf("vanished"), now = 42)
+        weights.applyImport(upserts = listOf(weight("fresh", healthConnectId = "hc")), vanishedIds = listOf("vanished"), now = 42)
 
         val all = weights.allSince(0).associateBy { it.id }
         assertEquals(setOf("vanished", "stays", "fresh"), all.keys)
         assertTrue(all.getValue("vanished").deleted)
         assertTrue(all.getValue("vanished").dirty)
+        assertEquals(VANISHED_FROM_HEALTH_CONNECT, all.getValue("vanished").healthConnectId)
         assertEquals(42L, all.getValue("vanished").updatedAt)
         assertFalse(all.getValue("stays").deleted)
         assertFalse(all.getValue("stays").dirty)
@@ -58,6 +60,27 @@ class BodyDaosTest {
         weights.applyImport(emptyList(), emptyList(), now = 1)
 
         assertEquals(emptyList<String>(), weights.dirty().map { it.id })
+    }
+
+    @Test
+    fun `deletes are stamped after the stored version even when the clock is behind`() = runTest {
+        weights.upsertAll(listOf(weight("a", updatedAt = 1_000, dirty = false), weight("b", updatedAt = 1_000, dirty = false)))
+
+        weights.softDelete("a", now = 500)
+        weights.markVanished(listOf("b"), now = 2_000)
+
+        val all = weights.allSince(0).associateBy { it.id }
+        assertEquals(1_001L, all.getValue("a").updatedAt)
+        assertEquals(2_000L, all.getValue("b").updatedAt)
+    }
+
+    @Test
+    fun `saveCurrent is stamped after the row it replaces`() = runTest {
+        goals.saveCurrent("g") { id -> goals(id, updatedAt = 1_000) }
+        goals.saveCurrent("g") { id -> goals(id, energyKcal = 1500, updatedAt = 400) } // clock went back
+
+        assertEquals(1_001L, goals.current()?.updatedAt)
+        assertEquals(1500, goals.current()?.energyKcal)
     }
 
     @Test

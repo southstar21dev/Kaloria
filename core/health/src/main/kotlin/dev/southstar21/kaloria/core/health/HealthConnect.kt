@@ -2,6 +2,7 @@ package dev.southstar21.kaloria.core.health
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
 import dev.southstar21.kaloria.core.model.HealthAccess
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -18,11 +19,18 @@ internal class HealthConnect(private val context: Context) {
         client ?: if (status() == HealthConnectClient.SDK_AVAILABLE) HealthConnectClient.getOrCreate(context).also { client = it } else null
     }
 
+    /** The permissions granted to Kaloria; none when Health Connect is missing or failing. */
+    suspend fun granted(): Set<String> = clientOrNull()?.let { c -> orDefault(emptySet()) { c.permissionController.getGrantedPermissions() } }.orEmpty()
+
+    /** Whether this Health Connect supports [feature], one of the `HealthConnectFeatures.FEATURE_` constants. */
+    fun supports(feature: Int): Boolean = clientOrNull()?.let { c ->
+        orDefault(false) { c.features.getFeatureStatus(feature) == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE }
+    } ?: false
+
     /** Whether all of [permissions] are granted; Health Connect missing or failing counts as no. */
     suspend fun access(permissions: Set<String>): HealthAccess = when (status()) {
         HealthConnectClient.SDK_AVAILABLE -> {
-            val granted = clientOrNull()?.let { c -> orDefault(emptySet()) { c.permissionController.getGrantedPermissions() } }.orEmpty()
-            if (granted.containsAll(permissions)) HealthAccess.Granted else HealthAccess.NeedsPermission
+            if (granted().containsAll(permissions)) HealthAccess.Granted else HealthAccess.NeedsPermission
         }
 
         HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> HealthAccess.NotInstalled

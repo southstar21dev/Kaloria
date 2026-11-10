@@ -28,7 +28,7 @@ class SyncDaoTest {
     fun `markCleanAll only clears rows not edited again since they were pushed`() = runTest {
         foods.upsertAll(listOf(food("a", "A", updatedAt = 10), food("b", "B", updatedAt = 20)))
         // b is edited again while its push (of updatedAt 20) is in flight.
-        foods.upsert(food("b", "B2", updatedAt = 25))
+        foods.upsertAll(listOf(food("b", "B2", updatedAt = 25)))
 
         foods.markCleanAll(mapOf("a" to 10L, "b" to 20L))
 

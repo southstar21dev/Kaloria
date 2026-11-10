@@ -13,10 +13,19 @@ import kotlinx.coroutines.Dispatchers
 @Retention(AnnotationRetention.BINARY)
 annotation class DefaultDispatcher
 
+/** The dispatcher for blocking I/O (files, preferences); injected so tests can run it on a test dispatcher. */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class IoDispatcher
+
 @Module
 @InstallIn(SingletonComponent::class)
 internal object DispatchersModule {
     @Provides
     @DefaultDispatcher
     fun defaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
+
+    @Provides
+    @IoDispatcher
+    fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
 }

@@ -45,4 +45,22 @@ class LogEntryDaoTest {
 
         assertEquals(listOf("early", "late"), dao.between(100, 400).first().map { it.id })
     }
+
+    @Test
+    fun `local saves and deletes never go back in time`() = runTest {
+        dao.upsertAll(listOf(entry("pulled", loggedAt = 1, updatedAt = 10_000, dirty = false)))
+
+        // Edited on a device whose clock is behind the one that wrote the pulled copy.
+        val saved = dao.save(entry("pulled", loggedAt = 2, updatedAt = 9_000))
+        assertEquals(10_001L, saved.updatedAt)
+        assertEquals(10_001L, dao.get("pulled")?.updatedAt)
+        assertEquals(2L, dao.get("pulled")?.loggedAt)
+
+        // A new row and a clock that's ahead keep the time given.
+        assertEquals(5L, dao.save(entry("new", loggedAt = 1, updatedAt = 5)).updatedAt)
+        assertEquals(20_000L, dao.save(entry("pulled", loggedAt = 2, updatedAt = 20_000)).updatedAt)
+
+        dao.softDelete("pulled", now = 15_000)
+        assertEquals(20_001L, dao.get("pulled")?.updatedAt)
+    }
 }

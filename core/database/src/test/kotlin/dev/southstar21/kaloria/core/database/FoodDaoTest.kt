@@ -1,9 +1,12 @@
 package dev.southstar21.kaloria.core.database
 
+import dev.southstar21.kaloria.core.database.dao.search
+import dev.southstar21.kaloria.core.model.Serving
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -57,6 +60,40 @@ class FoodDaoTest {
         assertEquals(listOf("barcode"), search("5991234567890"))
         // A barcode only matches exactly, not as a substring.
         assertEquals(emptyList<String>(), search("123"))
+    }
+
+    @Test
+    fun `percent and underscore are matched literally`() = runTest {
+        foods.upsertAll(listOf(food("pct", "Juice 100%"), food("plain", "Juice 1000 ml"), food("under", "snake_case"), food("other", "snakeXcase")))
+
+        assertEquals(listOf("pct"), search("100%"))
+        assertEquals(listOf("under"), search("e_c"))
+        assertEquals(emptyList<String>(), search("\\"))
+    }
+
+    @Test
+    fun `non-ASCII letters match regardless of case`() = runTest {
+        foods.upsertAll(listOf(food("upper", "Äpfel"), food("lower", "äpfel mus"), food("brand", "Saft", brand = "ÖKO"), food("other", "Xpfel")))
+
+        assertEquals(setOf("upper", "lower"), search("äpfel").toSet())
+        assertEquals(setOf("upper", "lower"), search("ÄPFEL").toSet())
+        assertEquals(listOf("brand"), search("öko"))
+    }
+
+    @Test
+    fun `save is stamped after the stored version and servings update alone`() = runTest {
+        foods.upsertAll(listOf(food("f", "Rice", updatedAt = 1_000, dirty = false), food("gone", "Old", deleted = true)))
+
+        assertEquals(1_001L, foods.save(food("f", "Rice", favorite = true, updatedAt = 900)).updatedAt)
+
+        assertEquals(1, foods.updateServings("f", listOf(Serving("Cup", 180.0)), now = 500))
+        val f = foods.get("f")!!
+        assertEquals(listOf(Serving("Cup", 180.0)), f.servings)
+        assertTrue(f.favorite) // the rest of the row is kept
+        assertEquals(1_002L, f.updatedAt)
+        assertTrue(f.dirty)
+        assertEquals(0, foods.updateServings("gone", emptyList(), now = 500))
+        assertEquals(0, foods.updateServings("missing", emptyList(), now = 500))
     }
 
     @Test
